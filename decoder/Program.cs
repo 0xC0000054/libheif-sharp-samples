@@ -33,6 +33,8 @@ using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.Metadata.Profiles.Icc;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
+using System.Globalization;
+using System.IO;
 
 namespace HeifDecoder
 {
@@ -40,8 +42,9 @@ namespace HeifDecoder
     {
         static void Main(string[] args)
         {
-            bool extractDepthImage = false;
-            bool extractThumbnailImage = false;
+            bool extractDepthImages = false;
+            bool extractThumbnailImages = false;
+            bool extractPrimaryImage = false;
             bool convertHdrToEightBit = false;
             bool showHelp = false;
 
@@ -50,8 +53,9 @@ namespace HeifDecoder
                 "Usage: heif-dec [OPTIONS] input.heif output.png",
                 "",
                 "Options:",
-                { "d|depth", "Extract the depth image (if present).", (v) => extractDepthImage = v != null },
-                { "t|thumb", "Extract the thumbnail image (if present).", (v) => extractThumbnailImage = v != null },
+                { "d|depth", "Extract the depth images (if present).", (v) => extractDepthImages = v != null },
+                { "t|thumb", "Extract the thumbnail images (if present).", (v) => extractThumbnailImages = v != null },
+                { "p|primary", "Extract the primary image (default: extract all top-level images)", (v) => extractPrimaryImage = v != null },
                 { "no-hdr", "Convert HDR images to 8 bits-per-channel.", (v) => convertHdrToEightBit = v != null },
                 { "h|help", "Print out this message and exit.", (v) => showHelp = v != null }
             };
@@ -69,8 +73,6 @@ namespace HeifDecoder
 
             try
             {
-                Image outputImage = null;
-
                 HeifDecodingOptions decodingOptions = new HeifDecodingOptions
                 {
                     ConvertHdrToEightBit = convertHdrToEightBit
@@ -80,56 +82,44 @@ namespace HeifDecoder
                 {
                     context.ReadFromFile(inputPath);
 
-                    using (var imageHandle = context.GetPrimaryImageHandle())
+                    if (extractPrimaryImage)
                     {
-                        if (extractDepthImage)
+                        using (var primaryImage = context.GetPrimaryImageHandle())
                         {
-                            if (imageHandle.HasDepthImage)
-                            {
-                                var depthImageIds = imageHandle.GetDepthImageIds();
-
-                                using (var depthImageHandle = imageHandle.GetDepthImage(depthImageIds[0]))
-                                {
-                                    outputImage = ProcessImageHandle(depthImageHandle, decodingOptions);
-                                }
-                            }
-                            else
-                            {
-                                Console.WriteLine("The primary image does not have an associated depth image.");
-                            }
-                        }
-                        else if (extractThumbnailImage)
-                        {
-                            var thumbnailImageIds = imageHandle.GetThumbnailImageIds();
-
-                            if (thumbnailImageIds.Count > 0)
-                            {
-                                using (var thumbnailImageHandle = imageHandle.GetThumbnailImage(thumbnailImageIds[0]))
-                                {
-                                    outputImage = ProcessImageHandle(thumbnailImageHandle, decodingOptions);
-                                }
-                            }
-                            else
-                            {
-                                Console.WriteLine("The primary image does not have an associated thumbnail image.");
-                            }
-                        }
-                        else
-                        {
-                            outputImage = ProcessImageHandle(imageHandle, decodingOptions);
+                            ProcessImageHandle(primaryImage, decodingOptions, extractDepthImages, extractThumbnailImages, outputPath);
                         }
                     }
-                }
+                    else
+                    {
+                        var topLevelImageIds = context.GetTopLevelImageIds();
 
-                if (outputImage != null)
-                {
-                    outputImage.SaveAsPng(outputPath);
+                        for (int i = 0; i < topLevelImageIds.Count; i++)
+                        {
+                            using (var imageHandle = context.GetImageHandle(topLevelImageIds[i]))
+                            {
+                                ProcessImageHandle(imageHandle,
+                                                   decodingOptions,
+                                                   extractDepthImages,
+                                                   extractThumbnailImages,
+                                                   AddSuffixToFileName(outputPath, $"-{ i }"));
+                            }
+                        }
+                    }
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
             }
+        }
+
+        static string AddSuffixToFileName(string path, string suffix)
+        {
+            string outputDir = Path.GetDirectoryName(path);
+            string fileName = Path.GetFileNameWithoutExtension(path);
+            string extension = Path.GetExtension(path);
+
+            return Path.Combine(outputDir, fileName + suffix + extension);
         }
 
         static unsafe Image CreateEightBitImageWithAlpha(HeifImage heifImage)
@@ -250,7 +240,79 @@ namespace HeifDecoder
             return image;
         }
 
-        static Image ProcessImageHandle(HeifImageHandle imageHandle, HeifDecodingOptions decodingOptions)
+        static void ProcessImageHandle(HeifImageHandle imageHandle,
+                                       HeifDecodingOptions decodingOptions,
+                                       bool extractDepthImages,
+                                       bool extractThumbnailImages,
+                                       string outputPath)
+        {
+            WriteOutputImage(imageHandle, decodingOptions, outputPath);
+
+            if (extractDepthImages)
+            {
+                if (imageHandle.HasDepthImage)
+                {
+                    var depthImageIds = imageHandle.GetDepthImageIds();
+
+                    string depthImageFileName;
+
+                    if (depthImageIds.Count == 1)
+                    {
+                        depthImageFileName = AddSuffixToFileName(outputPath, "-depth");
+
+                        using (var depthImageHandle = imageHandle.GetDepthImage(depthImageIds[0]))
+                        {
+                            WriteOutputImage(depthImageHandle, decodingOptions, depthImageFileName);
+                        }
+                    }
+                    else
+                    {
+                        depthImageFileName = AddSuffixToFileName(outputPath, "-depth-{0}");
+
+                        for (int i = 0; i < depthImageIds.Count; i++)
+                        {
+                            using (var depthImageHandle = imageHandle.GetDepthImage(depthImageIds[i]))
+                            {
+                                WriteOutputImage(depthImageHandle, decodingOptions, string.Format(CultureInfo.CurrentCulture, depthImageFileName, i));
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (extractThumbnailImages)
+            {
+                var thumbnailImageIds = imageHandle.GetThumbnailImageIds();
+
+                if (thumbnailImageIds.Count > 0)
+                {
+                    string thumbnailFileName;
+
+                    if (thumbnailImageIds.Count == 1)
+                    {
+                        thumbnailFileName = AddSuffixToFileName(outputPath, "-thumb");
+                        using (var thumbnailImageHandle = imageHandle.GetThumbnailImage(thumbnailImageIds[0]))
+                        {
+                            WriteOutputImage(thumbnailImageHandle, decodingOptions, thumbnailFileName);
+                        }
+                    }
+                    else
+                    {
+                        thumbnailFileName = AddSuffixToFileName(outputPath, "-thumb-{0}");
+
+                        for (int i = 0; i < thumbnailImageIds.Count; i++)
+                        {
+                            using (var depthImageHandle = imageHandle.GetThumbnailImage(thumbnailImageIds[i]))
+                            {
+                                WriteOutputImage(depthImageHandle, decodingOptions, string.Format(CultureInfo.CurrentCulture, thumbnailFileName, i));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        static void WriteOutputImage(HeifImageHandle imageHandle, HeifDecodingOptions decodingOptions, string outputPath)
         {
             Image outputImage;
 
@@ -315,7 +377,7 @@ namespace HeifDecoder
                 outputImage.Metadata.ExifProfile.RemoveValue(ExifTag.Orientation);
             }
 
-            return outputImage;
+            outputImage.SaveAsPng(outputPath);
         }
     }
 }
