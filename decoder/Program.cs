@@ -93,6 +93,8 @@ namespace HeifDecoder
                     {
                         var topLevelImageIds = context.GetTopLevelImageIds();
 
+                        string imageFileName = AddSuffixToFileName(outputPath, "-{0}");
+
                         for (int i = 0; i < topLevelImageIds.Count; i++)
                         {
                             using (var imageHandle = context.GetImageHandle(topLevelImageIds[i]))
@@ -101,7 +103,7 @@ namespace HeifDecoder
                                                    decodingOptions,
                                                    extractDepthImages,
                                                    extractThumbnailImages,
-                                                   AddSuffixToFileName(outputPath, $"-{ i }"));
+                                                   string.Format(CultureInfo.CurrentCulture, imageFileName, i));
                             }
                         }
                     }
