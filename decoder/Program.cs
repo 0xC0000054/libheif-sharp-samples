@@ -304,9 +304,9 @@ namespace HeifDecoder
 
                         for (int i = 0; i < thumbnailImageIds.Count; i++)
                         {
-                            using (var depthImageHandle = imageHandle.GetThumbnailImage(thumbnailImageIds[i]))
+                            using (var thumbnailImageHandle = imageHandle.GetThumbnailImage(thumbnailImageIds[i]))
                             {
-                                WriteOutputImage(depthImageHandle, decodingOptions, string.Format(CultureInfo.CurrentCulture, thumbnailFileName, i));
+                                WriteOutputImage(thumbnailImageHandle, decodingOptions, string.Format(CultureInfo.CurrentCulture, thumbnailFileName, i));
                             }
                         }
                     }
