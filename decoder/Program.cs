@@ -53,7 +53,7 @@ namespace HeifDecoder
                 "Usage: heif-dec [OPTIONS] input.heif output.png",
                 "",
                 "Options:",
-                { "p|primary", "Extract the primary image (default: extract all top-level images)", (v) => extractPrimaryImage = v != null },
+                { "p|primary", "Extract the primary image (default: extract all top-level images).", (v) => extractPrimaryImage = v != null },
                 { "d|depth", "Extract the depth images (if present).", (v) => extractDepthImages = v != null },
                 { "t|thumb", "Extract the thumbnail images (if present).", (v) => extractThumbnailImages = v != null },
                 { "no-hdr", "Convert HDR images to 8 bits-per-channel.", (v) => convertHdrToEightBit = v != null },
