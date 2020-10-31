@@ -37,6 +37,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 
 namespace HeifEncoderSample
 {
@@ -49,6 +50,8 @@ namespace HeifEncoderSample
             bool lossless = false;
             bool listEncoders = false;
             string encoderId = null;
+            bool listEncoderParameters = false;
+            Dictionary<string, string> encoderParameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             bool saveAlphaChannel = true;
             bool saveThumbnailAlphaChannel = true;
             int thumbnailBoundingBoxSize = 0;
@@ -67,6 +70,8 @@ namespace HeifEncoderSample
                     { "t|thumbnail-bounding-box-size=", "The size of the thumbnail bounding box in pixels.", (v) => thumbnailBoundingBoxSize = int.Parse(v, NumberStyles.Integer, CultureInfo.InvariantCulture) },
                     { "E|encoder=", "Use the specified encoder.", (v) => encoderId = v },
                     { "list-encoders", "Show a list of the available encoders.", (v) => listEncoders = v != null },
+                    { "p|encoder-parameter=", "Set the specified parameter in the encoder settings, uses a key=value format.", (k, v) => encoderParameters.Add(k, v) },
+                    { "P|list-encoder-parameters", "Show a list of the available encoder parameters.", (v) => listEncoderParameters = v != null },
                     { "no-alpha", "Do not save the image alpha channel. (default: false)", (v) => saveAlphaChannel = v is null },
                     { "no-thumbnail-alpha", "Do not save the thumbnail image alpha channel. (default: false)", (v) => saveThumbnailAlphaChannel = v is null },
                     { "h|help", "Print out this message and exit.", (v) => showHelp = v != null }
@@ -105,9 +110,6 @@ namespace HeifEncoderSample
                     return;
                 }
 
-                string inputPath = remaining[0];
-                string outputPath = remaining[1];
-
                 using (var context = new HeifContext())
                 {
                     HeifEncoder encoder = null;
@@ -141,46 +143,97 @@ namespace HeifEncoderSample
 
                     try
                     {
-                        using (HeifImage heifImage = CreateHeifImage(inputPath, lossless, out ImageMetadata metadata))
+                        if (listEncoderParameters)
                         {
-                            if (lossless)
+                            PrintEncoderParameterList(encoder);
+                        }
+                        else
+                        {
+                            if (remaining.Count != 2)
                             {
-                                encoder.SetLossless(true);
-                                // Lossless encoding requires YUV 4:4:4 chroma.
-                                encoder.SetParameter("chroma", "444");
-                            }
-                            else
-                            {
-                                encoder.SetLossyQuality(quality);
+                                options.WriteOptionDescriptions(Console.Out);
+                                return;
                             }
 
-                            HeifEncodingOptions encodingOptions = new HeifEncodingOptions { SaveAlphaChannel = saveAlphaChannel };
+                            string inputPath = remaining[0];
+                            string outputPath = remaining[1];
 
-                            if (metadata.ExifProfile is null && thumbnailBoundingBoxSize == 0)
+                            using (HeifImage heifImage = CreateHeifImage(inputPath, lossless, out ImageMetadata metadata))
                             {
-                                context.EncodeImage(heifImage, encoder, encodingOptions);
-                            }
-                            else
-                            {
-                                using (var imageHandle = context.EncodeImageAndReturnHandle(heifImage, encoder, encodingOptions))
+                                if (encoderParameters.Count > 0)
                                 {
-                                    if (metadata.ExifProfile != null)
-                                    {
-                                        context.AddExifMetadata(imageHandle, metadata.ExifProfile.ToByteArray());
-                                    }
+                                    var encoderParameterTypes = encoder.EncoderParameters.ToDictionary(k => k.Name,
+                                                                                                       v => v.ParameterType,
+                                                                                                       StringComparer.OrdinalIgnoreCase);
 
-                                    if (thumbnailBoundingBoxSize > 0)
+                                    foreach (var item in encoderParameters)
                                     {
-                                        HeifEncodingOptions thumbnailEncodingOptions = new HeifEncodingOptions
+                                        // Some encoders expect the method that is called will match the parameter type.
+                                        // Attempting to set a Boolean or Integer parameter as a string will cause an invalid parameter error.
+                                        if (encoderParameterTypes.TryGetValue(item.Key, out var type))
                                         {
-                                            SaveAlphaChannel = saveAlphaChannel && saveThumbnailAlphaChannel
-                                        };
-
-                                        context.EncodeThumbnail(thumbnailBoundingBoxSize, heifImage, imageHandle, encoder, thumbnailEncodingOptions);
+                                            switch (type)
+                                            {
+                                                case HeifEncoderParameterType.Boolean:
+                                                    encoder.SetParameter(item.Key, bool.Parse(item.Value));
+                                                    break;
+                                                case HeifEncoderParameterType.Integer:
+                                                    encoder.SetParameter(item.Key, int.Parse(item.Value));
+                                                    break;
+                                                case HeifEncoderParameterType.String:
+                                                    encoder.SetParameter(item.Key, item.Value);
+                                                    break;
+                                                default:
+                                                    throw new InvalidOperationException($"Unknown { nameof(HeifEncoderParameterType) }, { type }.");
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // The command may be an encoder-specific option that is not in the list.
+                                            encoder.SetParameter(item.Key, item.Value);
+                                        }
                                     }
                                 }
+
+                                if (lossless)
+                                {
+                                    encoder.SetLossless(true);
+                                    // Lossless encoding requires YUV 4:4:4 chroma.
+                                    encoder.SetParameter("chroma", "444");
+                                }
+                                else
+                                {
+                                    encoder.SetLossyQuality(quality);
+                                }
+
+                                HeifEncodingOptions encodingOptions = new HeifEncodingOptions { SaveAlphaChannel = saveAlphaChannel };
+
+                                if (metadata.ExifProfile is null && thumbnailBoundingBoxSize == 0)
+                                {
+                                    context.EncodeImage(heifImage, encoder, encodingOptions);
+                                }
+                                else
+                                {
+                                    using (var imageHandle = context.EncodeImageAndReturnHandle(heifImage, encoder, encodingOptions))
+                                    {
+                                        if (metadata.ExifProfile != null)
+                                        {
+                                            context.AddExifMetadata(imageHandle, metadata.ExifProfile.ToByteArray());
+                                        }
+
+                                        if (thumbnailBoundingBoxSize > 0)
+                                        {
+                                            HeifEncodingOptions thumbnailEncodingOptions = new HeifEncodingOptions
+                                            {
+                                                SaveAlphaChannel = saveAlphaChannel && saveThumbnailAlphaChannel
+                                            };
+
+                                            context.EncodeThumbnail(thumbnailBoundingBoxSize, heifImage, imageHandle, encoder, thumbnailEncodingOptions);
+                                        }
+                                    }
+                                }
+                                context.WriteToFile(outputPath);
                             }
-                            context.WriteToFile(outputPath);
                         }
                     }
                     finally
@@ -290,6 +343,74 @@ namespace HeifEncoderSample
                 var encoderDescriptor = encoderDescriptors[i];
 
                 Console.WriteLine("{0} = {1}", encoderDescriptor.IdName, encoderDescriptor.Name);
+            }
+        }
+
+        static void PrintEncoderParameterList(HeifEncoder encoder)
+        {
+            var encoderParameters = encoder.EncoderParameters;
+
+            for (int i = 0; i < encoderParameters.Count; i++)
+            {
+                var parameter = encoderParameters[i];
+
+                Console.Write(parameter.Name);
+
+                switch (parameter.ParameterType)
+                {
+                    case HeifEncoderParameterType.Boolean:
+                        HeifBooleanEncoderParameter booleanEncoderParameter = (HeifBooleanEncoderParameter)parameter;
+
+                        if (booleanEncoderParameter.HasDefault)
+                        {
+                            Console.Write($", default={ booleanEncoderParameter.DefaultValue }");
+                        }
+                        break;
+                    case HeifEncoderParameterType.Integer:
+                        HeifIntegerEncoderParameter integerEncoderParameter = (HeifIntegerEncoderParameter)parameter;
+
+                        if (integerEncoderParameter.HasDefault)
+                        {
+                            Console.Write($", default={ integerEncoderParameter.DefaultValue }");
+                        }
+
+                        if (integerEncoderParameter.HasMinimumMaximum)
+                        {
+                            Console.Write($", [{ integerEncoderParameter.Minimum },{ integerEncoderParameter.Maximum }]");
+                        }
+                        break;
+                    case HeifEncoderParameterType.String:
+                        HeifStringEncoderParameter stringEncoderParameter = (HeifStringEncoderParameter)parameter;
+
+                        if (stringEncoderParameter.HasDefault)
+                        {
+                            Console.Write($", default={ stringEncoderParameter.DefaultValue }");
+                        }
+
+                        var validValues = stringEncoderParameter.ValidValues;
+
+                        if (validValues.Count > 0)
+                        {
+                            Console.Write(", {");
+
+                            for (int j = 0; j < validValues.Count; j++)
+                            {
+                                if (j > 0)
+                                {
+                                    Console.Write(',');
+                                }
+
+                                Console.Write(validValues[j]);
+                            }
+
+                            Console.Write('}');
+                        }
+                        break;
+                    default:
+                        throw new InvalidOperationException($"Unknown { nameof(HeifEncoderParameterType) }, { parameter.ParameterType }.");
+                }
+
+                Console.Write(Environment.NewLine);
             }
         }
     }
