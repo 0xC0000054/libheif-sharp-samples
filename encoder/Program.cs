@@ -98,7 +98,7 @@ namespace HeifEncoderSample
                     }
                     return;
                 }
-                else if (showHelp || remaining.Count != 2)
+                else if (showHelp)
                 {
                     options.WriteOptionDescriptions(Console.Out);
                     return;
