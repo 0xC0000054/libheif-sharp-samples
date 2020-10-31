@@ -4,7 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <AssemblyName>heif-dec</AssemblyName>
-    <RootNamespace>HeifDecoder</RootNamespace>
+    <RootNamespace>HeifDecoderSample</RootNamespace>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">

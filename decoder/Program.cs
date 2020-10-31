@@ -36,7 +36,7 @@ using System;
 using System.Globalization;
 using System.IO;
 
-namespace HeifDecoder
+namespace HeifDecoderSample
 {
     class Program
     {

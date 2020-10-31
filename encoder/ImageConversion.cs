@@ -29,7 +29,7 @@ using LibHeifSharp;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 
-namespace HeifEncoder
+namespace HeifEncoderSample
 {
     internal static class ImageConversion
     {

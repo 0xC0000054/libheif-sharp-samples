@@ -37,7 +37,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Globalization;
 
-namespace HeifEncoder
+namespace HeifEncoderSample
 {
     class Program
     {
