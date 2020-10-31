@@ -178,7 +178,7 @@ namespace HeifEncoderSample
                                                     encoder.SetParameter(item.Key, bool.Parse(item.Value));
                                                     break;
                                                 case HeifEncoderParameterType.Integer:
-                                                    encoder.SetParameter(item.Key, int.Parse(item.Value));
+                                                    encoder.SetParameter(item.Key, int.Parse(item.Value, NumberStyles.Integer, CultureInfo.InvariantCulture));
                                                     break;
                                                 case HeifEncoderParameterType.String:
                                                     encoder.SetParameter(item.Key, item.Value);
