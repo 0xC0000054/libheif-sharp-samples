@@ -35,6 +35,7 @@ using SixLabors.ImageSharp.Formats.Tga;
 using SixLabors.ImageSharp.Metadata;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace HeifEncoderSample
@@ -46,6 +47,8 @@ namespace HeifEncoderSample
             int quality = 50;
             bool avif = false;
             bool lossless = false;
+            bool listEncoders = false;
+            string encoderId = null;
             bool saveAlphaChannel = true;
             bool saveThumbnailAlphaChannel = true;
             int thumbnailBoundingBoxSize = 0;
@@ -61,6 +64,8 @@ namespace HeifEncoderSample
                     { "q|quality=", "The lossy encode quality (default: 50).", (v) => quality = int.Parse(v, NumberStyles.Integer, CultureInfo.InvariantCulture) },
                     { "L|lossless", "Use lossless compression (default: false)", (v) => lossless = v != null },
                     { "t|thumbnail-bounding-box-size=", "The size of the thumbnail bounding box in pixels.", (v) => thumbnailBoundingBoxSize = int.Parse(v, NumberStyles.Integer, CultureInfo.InvariantCulture) },
+                    { "E|encoder=", "Use the specified encoder.", (v) => encoderId = v },
+                    { "list-encoders", "Show a list of the available encoders.", (v) => listEncoders = v != null },
                     { "no-alpha", "Do not save the image alpha channel. (default: false)", (v) => saveAlphaChannel = v is null },
                     { "no-thumbnail-alpha", "Do not save the thumbnail image alpha channel. (default: false)", (v) => saveThumbnailAlphaChannel = v is null },
                     { "h|help", "Print out this message and exit.", (v) => showHelp = v != null }
@@ -73,7 +78,19 @@ namespace HeifEncoderSample
 
                 var remaining = options.Parse(args);
 
-                if (showHelp || remaining.Count != 2)
+                var format = avif ? HeifCompressionFormat.Av1 : HeifCompressionFormat.Hevc;
+
+                if (listEncoders)
+                {
+                    using (var context = new HeifContext())
+                    {
+                        var encoderDescriptors = context.GetEncoderDescriptors(format);
+
+                        PrintEncoderList(encoderDescriptors);
+                    }
+                    return;
+                }
+                else if (showHelp || remaining.Count != 2)
                 {
                     options.WriteOptionDescriptions(Console.Out);
                     return;
@@ -85,58 +102,43 @@ namespace HeifEncoderSample
                     return;
                 }
 
-                var format = avif ? HeifCompressionFormat.Av1 : HeifCompressionFormat.Hevc;
-
                 string inputPath = remaining[0];
                 string outputPath = remaining[1];
 
-                HeifImage heifImage = null;
-
-                try
+                using (var context = new HeifContext())
                 {
-                    ImageMetadata metadata;
+                    HeifEncoder encoder = null;
 
-                    if (ImageMayHaveTransparency(inputPath))
+                    if (encoderId is null)
                     {
-                        var image = Image.Load<Rgba32>(inputPath);
-                        metadata = image.Metadata;
-
-                        heifImage = ImageConversion.ConvertToHeifImage(image);
+                        encoder = context.GetEncoder(format);
                     }
                     else
                     {
-                        var image = Image.Load<Rgb24>(inputPath);
-                        metadata = image.Metadata;
+                        var encoderDescriptors = context.GetEncoderDescriptors(format);
 
-                        heifImage = ImageConversion.ConvertToHeifImage(image);
+                        for (int i = 0; i < encoderDescriptors.Count; i++)
+                        {
+                            var descriptor = encoderDescriptors[i];
+
+                            if (encoderId.Equals(descriptor.IdName, StringComparison.Ordinal))
+                            {
+                                encoder = context.GetEncoder(descriptor);
+                                break;
+                            }
+                        }
+
+                        if (encoder is null)
+                        {
+                            Console.WriteLine("Invalid encoder ID, please choose one from the list below:");
+                            PrintEncoderList(encoderDescriptors);
+                            return;
+                        }
                     }
 
-                    if (lossless)
+                    try
                     {
-                        // The Identity matrix coefficient places the RGB values into the YUV planes without any conversion.
-                        // This reduces the compression efficiency, but allows for fully lossless encoding.
-                        heifImage.ColorProfile = new HeifNclxColorProfile(ColorPrimaries.BT709,
-                                                                          TransferCharacteristics.Srgb,
-                                                                          MatrixCoefficients.Identity,
-                                                                          fullRange: true);
-                    }
-                    else if (metadata.IccProfile != null)
-                    {
-                        heifImage.ColorProfile = new HeifIccColorProfile(metadata.IccProfile.ToByteArray());
-                    }
-                    else
-                    {
-                        heifImage.ColorProfile = new HeifNclxColorProfile(ColorPrimaries.BT709,
-                                                                          TransferCharacteristics.Srgb,
-                                                                          MatrixCoefficients.BT601,
-                                                                          fullRange: true);
-                    }
-
-                    HeifEncodingOptions encodingOptions = new HeifEncodingOptions { SaveAlphaChannel = saveAlphaChannel };
-
-                    using (var context = new HeifContext())
-                    {
-                        using (var encoder = context.GetEncoder(format))
+                        using (HeifImage heifImage = CreateHeifImage(inputPath, lossless, out ImageMetadata metadata))
                         {
                             if (lossless)
                             {
@@ -148,6 +150,8 @@ namespace HeifEncoderSample
                             {
                                 encoder.SetLossyQuality(quality);
                             }
+
+                            HeifEncodingOptions encodingOptions = new HeifEncodingOptions { SaveAlphaChannel = saveAlphaChannel };
 
                             if (metadata.ExifProfile is null && thumbnailBoundingBoxSize == 0)
                             {
@@ -176,16 +180,71 @@ namespace HeifEncoderSample
                             context.WriteToFile(outputPath);
                         }
                     }
+                    finally
+                    {
+                        encoder?.Dispose();
+                    }
                 }
-                finally
-                {
-                    heifImage?.Dispose();
-                }
+
             }
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
             }
+        }
+
+        static HeifImage CreateHeifImage(string inputPath, bool lossless, out ImageMetadata metadata)
+        {
+            HeifImage heifImage = null;
+            HeifImage temp = null;
+
+            try
+            {
+                if (ImageMayHaveTransparency(inputPath))
+                {
+                    var image = Image.Load<Rgba32>(inputPath);
+                    metadata = image.Metadata;
+
+                    temp = ImageConversion.ConvertToHeifImage(image);
+                }
+                else
+                {
+                    var image = Image.Load<Rgb24>(inputPath);
+                    metadata = image.Metadata;
+
+                    temp = ImageConversion.ConvertToHeifImage(image);
+                }
+
+                if (lossless)
+                {
+                    // The Identity matrix coefficient places the RGB values into the YUV planes without any conversion.
+                    // This reduces the compression efficiency, but allows for fully lossless encoding.
+                    temp.ColorProfile = new HeifNclxColorProfile(ColorPrimaries.BT709,
+                                                                 TransferCharacteristics.Srgb,
+                                                                 MatrixCoefficients.Identity,
+                                                                 fullRange: true);
+                }
+                else if (metadata.IccProfile != null)
+                {
+                    temp.ColorProfile = new HeifIccColorProfile(metadata.IccProfile.ToByteArray());
+                }
+                else
+                {
+                    temp.ColorProfile = new HeifNclxColorProfile(ColorPrimaries.BT709,
+                                                                 TransferCharacteristics.Srgb,
+                                                                 MatrixCoefficients.BT601,
+                                                                 fullRange: true);
+                }
+
+                heifImage = temp;
+                temp = null;
+            }
+            finally
+            {
+                temp?.Dispose();
+            }
+
+            return heifImage;
         }
 
         static bool ImageMayHaveTransparency(string path)
@@ -221,5 +280,14 @@ namespace HeifEncoderSample
             return mayHaveTransparency;
         }
 
+        static void PrintEncoderList(IReadOnlyList<HeifEncoderDescriptor> encoderDescriptors)
+        {
+            for (int i = 0; i < encoderDescriptors.Count; i++)
+            {
+                var encoderDescriptor = encoderDescriptors[i];
+
+                Console.WriteLine("{0} = {1}", encoderDescriptor.IdName, encoderDescriptor.Name);
+            }
+        }
     }
 }
