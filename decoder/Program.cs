@@ -73,7 +73,7 @@ namespace HeifDecoderSample
 
             try
             {
-                HeifDecodingOptions decodingOptions = new HeifDecodingOptions
+                var decodingOptions = new HeifDecodingOptions
                 {
                     ConvertHdrToEightBit = convertHdrToEightBit
                 };

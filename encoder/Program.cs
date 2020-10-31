@@ -51,7 +51,7 @@ namespace HeifEncoderSample
             bool listEncoders = false;
             string encoderId = null;
             bool listEncoderParameters = false;
-            Dictionary<string, string> encoderParameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var encoderParameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             bool saveAlphaChannel = true;
             bool saveThumbnailAlphaChannel = true;
             int thumbnailBoundingBoxSize = 0;
@@ -158,7 +158,7 @@ namespace HeifEncoderSample
                             string inputPath = remaining[0];
                             string outputPath = remaining[1];
 
-                            using (HeifImage heifImage = CreateHeifImage(inputPath, lossless, out ImageMetadata metadata))
+                            using (var heifImage = CreateHeifImage(inputPath, lossless, out var metadata))
                             {
                                 if (encoderParameters.Count > 0)
                                 {
@@ -206,7 +206,7 @@ namespace HeifEncoderSample
                                     encoder.SetLossyQuality(quality);
                                 }
 
-                                HeifEncodingOptions encodingOptions = new HeifEncodingOptions { SaveAlphaChannel = saveAlphaChannel };
+                                var encodingOptions = new HeifEncodingOptions { SaveAlphaChannel = saveAlphaChannel };
 
                                 if (metadata.ExifProfile is null && thumbnailBoundingBoxSize == 0)
                                 {
@@ -223,7 +223,7 @@ namespace HeifEncoderSample
 
                                         if (thumbnailBoundingBoxSize > 0)
                                         {
-                                            HeifEncodingOptions thumbnailEncodingOptions = new HeifEncodingOptions
+                                            var thumbnailEncodingOptions = new HeifEncodingOptions
                                             {
                                                 SaveAlphaChannel = saveAlphaChannel && saveThumbnailAlphaChannel
                                             };
@@ -359,7 +359,7 @@ namespace HeifEncoderSample
                 switch (parameter.ParameterType)
                 {
                     case HeifEncoderParameterType.Boolean:
-                        HeifBooleanEncoderParameter booleanEncoderParameter = (HeifBooleanEncoderParameter)parameter;
+                        var booleanEncoderParameter = (HeifBooleanEncoderParameter)parameter;
 
                         if (booleanEncoderParameter.HasDefault)
                         {
@@ -367,7 +367,7 @@ namespace HeifEncoderSample
                         }
                         break;
                     case HeifEncoderParameterType.Integer:
-                        HeifIntegerEncoderParameter integerEncoderParameter = (HeifIntegerEncoderParameter)parameter;
+                        var integerEncoderParameter = (HeifIntegerEncoderParameter)parameter;
 
                         if (integerEncoderParameter.HasDefault)
                         {
@@ -380,7 +380,7 @@ namespace HeifEncoderSample
                         }
                         break;
                     case HeifEncoderParameterType.String:
-                        HeifStringEncoderParameter stringEncoderParameter = (HeifStringEncoderParameter)parameter;
+                        var stringEncoderParameter = (HeifStringEncoderParameter)parameter;
 
                         if (stringEncoderParameter.HasDefault)
                         {
