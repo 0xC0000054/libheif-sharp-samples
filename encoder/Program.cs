@@ -61,6 +61,7 @@ namespace HeifEncoderSample
                     "Usage: heif-enc [OPTIONS] input output",
                     "",
                     "Options:",
+                    { "A|avif", "Encode as AVIF (default: HEVC)", (v) => avif = v != null },
                     { "q|quality=", "The lossy encode quality (default: 50).", (v) => quality = int.Parse(v, NumberStyles.Integer, CultureInfo.InvariantCulture) },
                     { "L|lossless", "Use lossless compression (default: false)", (v) => lossless = v != null },
                     { "t|thumbnail-bounding-box-size=", "The size of the thumbnail bounding box in pixels.", (v) => thumbnailBoundingBoxSize = int.Parse(v, NumberStyles.Integer, CultureInfo.InvariantCulture) },
@@ -71,14 +72,16 @@ namespace HeifEncoderSample
                     { "h|help", "Print out this message and exit.", (v) => showHelp = v != null }
                 };
 
-                if (LibHeifInfo.HaveEncoder(HeifCompressionFormat.Av1))
-                {
-                    options.Add("A|avif", "Encode as AVIF (default: HEVC)", (v) => avif = v != null);
-                }
-
                 var remaining = options.Parse(args);
 
                 var format = avif ? HeifCompressionFormat.Av1 : HeifCompressionFormat.Hevc;
+
+                if (!LibHeifInfo.HaveEncoder(format))
+                {
+                    string formatName = avif ? "AV1" : "HEVC";
+                    Console.WriteLine($"No { formatName } encoder available.");
+                    return;
+                }
 
                 if (listEncoders)
                 {
