@@ -168,7 +168,7 @@ namespace HeifEncoderSample
 
                                     foreach (var item in encoderParameters)
                                     {
-                                        // Some encoders expect the method that is called will match the parameter type.
+                                        // Some encoders expect the method that is called to match the parameter type.
                                         // Attempting to set a Boolean or Integer parameter as a string will cause an invalid parameter error.
                                         if (encoderParameterTypes.TryGetValue(item.Key, out var type))
                                         {
