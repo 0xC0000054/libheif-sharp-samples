@@ -78,10 +78,8 @@ namespace HeifDecoderSample
                     ConvertHdrToEightBit = convertHdrToEightBit
                 };
 
-                using (var context = new HeifContext())
+                using (var context = new HeifContext(inputPath))
                 {
-                    context.ReadFromFile(inputPath);
-
                     if (extractPrimaryImage)
                     {
                         using (var primaryImage = context.GetPrimaryImageHandle())
