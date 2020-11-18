@@ -162,36 +162,9 @@ namespace HeifEncoderSample
                             {
                                 if (encoderParameters.Count > 0)
                                 {
-                                    var encoderParameterTypes = encoder.EncoderParameters.ToDictionary(k => k.Name,
-                                                                                                       v => v.ParameterType,
-                                                                                                       StringComparer.OrdinalIgnoreCase);
-
                                     foreach (var item in encoderParameters)
                                     {
-                                        // Some encoders expect the method that is called to match the parameter type.
-                                        // Attempting to set a Boolean or Integer parameter as a string will cause an invalid parameter error.
-                                        if (encoderParameterTypes.TryGetValue(item.Key, out var type))
-                                        {
-                                            switch (type)
-                                            {
-                                                case HeifEncoderParameterType.Boolean:
-                                                    encoder.SetParameter(item.Key, bool.Parse(item.Value));
-                                                    break;
-                                                case HeifEncoderParameterType.Integer:
-                                                    encoder.SetParameter(item.Key, int.Parse(item.Value, NumberStyles.Integer, CultureInfo.InvariantCulture));
-                                                    break;
-                                                case HeifEncoderParameterType.String:
-                                                    encoder.SetParameter(item.Key, item.Value);
-                                                    break;
-                                                default:
-                                                    throw new InvalidOperationException($"Unknown { nameof(HeifEncoderParameterType) }, { type }.");
-                                            }
-                                        }
-                                        else
-                                        {
-                                            // The command may be an encoder-specific option that is not in the list.
-                                            encoder.SetParameter(item.Key, item.Value);
-                                        }
+                                        encoder.SetParameter(item.Key, item.Value);
                                     }
                                 }
 
