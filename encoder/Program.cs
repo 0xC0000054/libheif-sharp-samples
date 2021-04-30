@@ -79,20 +79,11 @@ namespace HeifEncoderSample
 
                 var remaining = options.Parse(args);
 
-                var format = avif ? HeifCompressionFormat.Av1 : HeifCompressionFormat.Hevc;
-
-                if (!LibHeifInfo.HaveEncoder(format))
-                {
-                    string formatName = avif ? "AV1" : "HEVC";
-                    Console.WriteLine($"No { formatName } encoder available.");
-                    return;
-                }
-
                 if (listEncoders)
                 {
                     using (var context = new HeifContext())
                     {
-                        var encoderDescriptors = context.GetEncoderDescriptors(format);
+                        var encoderDescriptors = context.GetEncoderDescriptors();
 
                         PrintEncoderList(encoderDescriptors);
                     }
@@ -101,6 +92,15 @@ namespace HeifEncoderSample
                 else if (showHelp)
                 {
                     options.WriteOptionDescriptions(Console.Out);
+                    return;
+                }
+
+                var format = avif ? HeifCompressionFormat.Av1 : HeifCompressionFormat.Hevc;
+
+                if (!LibHeifInfo.HaveEncoder(format))
+                {
+                    string formatName = avif ? "AV1" : "HEVC";
+                    Console.WriteLine($"No { formatName } encoder available.");
                     return;
                 }
 
