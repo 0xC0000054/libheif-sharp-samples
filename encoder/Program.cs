@@ -79,66 +79,60 @@ namespace HeifEncoderSample
 
                 var remaining = options.Parse(args);
 
-                var format = avif ? HeifCompressionFormat.Av1 : HeifCompressionFormat.Hevc;
-
-                if (!LibHeifInfo.HaveEncoder(format))
-                {
-                    string formatName = avif ? "AV1" : "HEVC";
-                    Console.WriteLine($"No { formatName } encoder available.");
-                    return;
-                }
-
-                if (listEncoders)
-                {
-                    using (var context = new HeifContext())
-                    {
-                        var encoderDescriptors = context.GetEncoderDescriptors(format);
-
-                        PrintEncoderList(encoderDescriptors);
-                    }
-                    return;
-                }
-                else if (showHelp)
+                if (showHelp)
                 {
                     options.WriteOptionDescriptions(Console.Out);
-                    return;
-                }
-
-                if (quality < 0 || quality > 100)
-                {
-                    Console.WriteLine("The quality parameter must be between 0 and 100.");
                     return;
                 }
 
                 using (var context = new HeifContext())
                 {
                     HeifEncoderDescriptor encoderDescriptor = null;
-                    var encoderDescriptors = context.GetEncoderDescriptors(format);
+                    var format = avif ? HeifCompressionFormat.Av1 : HeifCompressionFormat.Hevc;
 
-                    if (encoderId is null)
+                    if (LibHeifInfo.HaveEncoder(format))
                     {
-                        // Use the default encoder for the specified format.
-                        encoderDescriptor = encoderDescriptors[0];
-                    }
-                    else
-                    {
-                        for (int i = 0; i < encoderDescriptors.Count; i++)
-                        {
-                            var descriptor = encoderDescriptors[i];
+                        var encoderDescriptors = context.GetEncoderDescriptors(format);
 
-                            if (encoderId.Equals(descriptor.IdName, StringComparison.Ordinal))
-                            {
-                                encoderDescriptor = descriptor;
-                                break;
-                            }
-                        }
-
-                        if (encoderDescriptor is null)
+                        if (listEncoders)
                         {
-                            Console.WriteLine("Invalid encoder ID, please choose one from the list below:");
                             PrintEncoderList(encoderDescriptors);
                             return;
                         }
+                        else
+                        {
+                            if (encoderId is null)
+                            {
+                                // Use the default encoder for the specified format.
+                                encoderDescriptor = encoderDescriptors[0];
+                            }
+                            else
+                            {
+                                for (int i = 0; i < encoderDescriptors.Count; i++)
+                                {
+                                    var descriptor = encoderDescriptors[i];
+
+                                    if (encoderId.Equals(descriptor.IdName, StringComparison.Ordinal))
+                                    {
+                                        encoderDescriptor = descriptor;
+                                        break;
+                                    }
+                                }
+
+                                if (encoderDescriptor is null)
+                                {
+                                    Console.WriteLine("Invalid encoder ID, please choose one from the list below:");
+                                    PrintEncoderList(encoderDescriptors);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                    else
+                    {
+                        string formatName = avif ? "AV1" : "HEVC";
+                        Console.WriteLine($"No { formatName } encoder available.");
+                        return;
                     }
 
                     using (HeifEncoder encoder = context.GetEncoder(encoderDescriptor))
@@ -152,6 +146,11 @@ namespace HeifEncoderSample
                             if (remaining.Count != 2)
                             {
                                 options.WriteOptionDescriptions(Console.Out);
+                                return;
+                            }
+                            else if (quality < 0 || quality > 100)
+                            {
+                                Console.WriteLine("The quality parameter must be between 0 and 100.");
                                 return;
                             }
 
