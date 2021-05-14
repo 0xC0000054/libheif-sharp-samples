@@ -95,6 +95,15 @@ namespace HeifEncoderSample
                     return;
                 }
 
+                var format = avif ? HeifCompressionFormat.Av1 : HeifCompressionFormat.Hevc;
+
+                if (!LibHeifInfo.HaveEncoder(format))
+                {
+                    string formatName = avif ? "AV1" : "HEVC";
+                    Console.WriteLine($"No { formatName } encoder available.");
+                    return;
+                }
+
                 if (quality < 0 || quality > 100)
                 {
                     Console.WriteLine("The quality parameter must be between 0 and 100.");
@@ -107,20 +116,11 @@ namespace HeifEncoderSample
 
                     if (encoderId is null)
                     {
-                        var format = avif ? HeifCompressionFormat.Av1 : HeifCompressionFormat.Hevc;
-
-                        if (!LibHeifInfo.HaveEncoder(format))
-                        {
-                            string formatName = avif ? "AV1" : "HEVC";
-                            Console.WriteLine($"No { formatName } encoder available.");
-                            return;
-                        }
-
                         encoder = context.GetEncoder(format);
                     }
                     else
                     {
-                        var encoderDescriptors = context.GetEncoderDescriptors();
+                        var encoderDescriptors = context.GetEncoderDescriptors(format);
 
                         for (int i = 0; i < encoderDescriptors.Count; i++)
                         {
