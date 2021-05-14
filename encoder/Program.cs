@@ -112,28 +112,28 @@ namespace HeifEncoderSample
 
                 using (var context = new HeifContext())
                 {
-                    HeifEncoder encoder = null;
+                    HeifEncoderDescriptor encoderDescriptor = null;
+                    var encoderDescriptors = context.GetEncoderDescriptors(format);
 
                     if (encoderId is null)
                     {
-                        encoder = context.GetEncoder(format);
+                        // Use the default encoder for the specified format.
+                        encoderDescriptor = encoderDescriptors[0];
                     }
                     else
                     {
-                        var encoderDescriptors = context.GetEncoderDescriptors(format);
-
                         for (int i = 0; i < encoderDescriptors.Count; i++)
                         {
                             var descriptor = encoderDescriptors[i];
 
                             if (encoderId.Equals(descriptor.IdName, StringComparison.Ordinal))
                             {
-                                encoder = context.GetEncoder(descriptor);
+                                encoderDescriptor = descriptor;
                                 break;
                             }
                         }
 
-                        if (encoder is null)
+                        if (encoderDescriptor is null)
                         {
                             Console.WriteLine("Invalid encoder ID, please choose one from the list below:");
                             PrintEncoderList(encoderDescriptors);
@@ -141,7 +141,7 @@ namespace HeifEncoderSample
                         }
                     }
 
-                    try
+                    using (HeifEncoder encoder = context.GetEncoder(encoderDescriptor))
                     {
                         if (listEncoderParameters)
                         {
@@ -168,7 +168,8 @@ namespace HeifEncoderSample
                                     }
                                 }
 
-                                if (lossless)
+                                encoder.SetLossyQuality(quality);
+                                if (lossless && encoderDescriptor.SupportsLosslessCompression)
                                 {
                                     encoder.SetLossless(true);
                                     // Lossless encoding requires YUV 4:4:4 chroma.
@@ -176,7 +177,7 @@ namespace HeifEncoderSample
                                 }
                                 else
                                 {
-                                    encoder.SetLossyQuality(quality);
+                                    Console.WriteLine($"Warning: the { encoderDescriptor.IdName } encoder does not support lossless compression, using lossy compression.");
                                 }
 
                                 var encodingOptions = new HeifEncodingOptions { SaveAlphaChannel = saveAlphaChannel };
@@ -208,10 +209,6 @@ namespace HeifEncoderSample
                                 context.WriteToFile(outputPath);
                             }
                         }
-                    }
-                    finally
-                    {
-                        encoder?.Dispose();
                     }
                 }
 
