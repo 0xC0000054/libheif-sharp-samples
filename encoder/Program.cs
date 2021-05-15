@@ -168,15 +168,18 @@ namespace HeifEncoderSample
                                 }
 
                                 encoder.SetLossyQuality(quality);
-                                if (lossless && encoderDescriptor.SupportsLosslessCompression)
+                                if (lossless)
                                 {
-                                    encoder.SetLossless(true);
-                                    // Lossless encoding requires YUV 4:4:4 chroma.
-                                    encoder.SetParameter("chroma", "444");
-                                }
-                                else
-                                {
-                                    Console.WriteLine($"Warning: the { encoderDescriptor.IdName } encoder does not support lossless compression, using lossy compression.");
+                                    if (encoderDescriptor.SupportsLosslessCompression)
+                                    {
+                                        encoder.SetLossless(true);
+                                        // Lossless encoding requires YUV 4:4:4 chroma.
+                                        encoder.SetParameter("chroma", "444");
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine($"Warning: the { encoderDescriptor.IdName } encoder does not support lossless compression, using lossy compression.");
+                                    }
                                 }
 
                                 var encodingOptions = new HeifEncodingOptions { SaveAlphaChannel = saveAlphaChannel };
