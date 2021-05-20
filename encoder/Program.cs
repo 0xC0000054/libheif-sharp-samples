@@ -37,7 +37,6 @@ using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 
 namespace HeifEncoderSample
 {
@@ -54,6 +53,7 @@ namespace HeifEncoderSample
             var encoderParameters = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             bool saveAlphaChannel = true;
             bool saveThumbnailAlphaChannel = true;
+            bool writeTwoProfiles = false;
             int thumbnailBoundingBoxSize = 0;
             bool showHelp = false;
 
@@ -74,6 +74,7 @@ namespace HeifEncoderSample
                     { "P|list-encoder-parameters", "Show a list of the available encoder parameters.", (v) => listEncoderParameters = v != null },
                     { "no-alpha", "Do not save the image alpha channel. (default: false)", (v) => saveAlphaChannel = v is null },
                     { "no-thumbnail-alpha", "Do not save the thumbnail image alpha channel. (default: false)", (v) => saveThumbnailAlphaChannel = v is null },
+                    { "write-two-profiles", "Write two profiles when the image has both an ICC and NCLX color profile. (default: false)", (v) => writeTwoProfiles = v != null },
                     { "h|help", "Print out this message and exit.", (v) => showHelp = v != null }
                 };
 
@@ -153,11 +154,16 @@ namespace HeifEncoderSample
                                 Console.WriteLine("The quality parameter must be between 0 and 100.");
                                 return;
                             }
+                            else if (writeTwoProfiles && !LibHeifInfo.CanWriteTwoColorProfiles)
+                            {
+                                writeTwoProfiles = false;
+                                Console.WriteLine($"Warning: LibHeif version { LibHeifInfo.Version } cannot write two color profiles.");
+                            }
 
                             string inputPath = remaining[0];
                             string outputPath = remaining[1];
 
-                            using (var heifImage = CreateHeifImage(inputPath, lossless, out var metadata))
+                            using (var heifImage = CreateHeifImage(inputPath, lossless, writeTwoProfiles, out var metadata))
                             {
                                 if (encoderParameters.Count > 0)
                                 {
@@ -178,11 +184,16 @@ namespace HeifEncoderSample
                                     }
                                     else
                                     {
+                                        lossless = false;
                                         Console.WriteLine($"Warning: the { encoderDescriptor.IdName } encoder does not support lossless compression, using lossy compression.");
                                     }
                                 }
 
-                                var encodingOptions = new HeifEncodingOptions { SaveAlphaChannel = saveAlphaChannel };
+                                var encodingOptions = new HeifEncodingOptions
+                                {
+                                    SaveAlphaChannel = saveAlphaChannel,
+                                    WriteTwoColorProfiles = writeTwoProfiles
+                                };
 
                                 if (metadata.ExifProfile is null && thumbnailBoundingBoxSize == 0)
                                 {
@@ -221,7 +232,7 @@ namespace HeifEncoderSample
             }
         }
 
-        static HeifImage CreateHeifImage(string inputPath, bool lossless, out ImageMetadata metadata)
+        static HeifImage CreateHeifImage(string inputPath, bool lossless, bool writeTwoColorProfiles, out ImageMetadata metadata)
         {
             HeifImage heifImage = null;
             HeifImage temp = null;
@@ -243,25 +254,49 @@ namespace HeifEncoderSample
                     temp = ImageConversion.ConvertToHeifImage(image);
                 }
 
-                if (lossless)
+                if (writeTwoColorProfiles && metadata.IccProfile != null)
                 {
-                    // The Identity matrix coefficient places the RGB values into the YUV planes without any conversion.
-                    // This reduces the compression efficiency, but allows for fully lossless encoding.
-                    temp.ColorProfile = new HeifNclxColorProfile(ColorPrimaries.BT709,
-                                                                 TransferCharacteristics.Srgb,
-                                                                 MatrixCoefficients.Identity,
-                                                                 fullRange: true);
-                }
-                else if (metadata.IccProfile != null)
-                {
-                    temp.ColorProfile = new HeifIccColorProfile(metadata.IccProfile.ToByteArray());
+                    temp.IccColorProfile = new HeifIccColorProfile(metadata.IccProfile.ToByteArray());
+
+                    if (lossless)
+                    {
+                        // The Identity matrix coefficient places the RGB values into the YUV planes without any conversion.
+                        // This reduces the compression efficiency, but allows for fully lossless encoding.
+                        temp.NclxColorProfile = new HeifNclxColorProfile(ColorPrimaries.BT709,
+                                                                         TransferCharacteristics.Srgb,
+                                                                         MatrixCoefficients.Identity,
+                                                                         fullRange: true);
+                    }
+                    else
+                    {
+                        temp.NclxColorProfile = new HeifNclxColorProfile(ColorPrimaries.BT709,
+                                                                         TransferCharacteristics.Srgb,
+                                                                         MatrixCoefficients.BT601,
+                                                                         fullRange: true);
+                    }
                 }
                 else
                 {
-                    temp.ColorProfile = new HeifNclxColorProfile(ColorPrimaries.BT709,
-                                                                 TransferCharacteristics.Srgb,
-                                                                 MatrixCoefficients.BT601,
-                                                                 fullRange: true);
+                    if (lossless)
+                    {
+                        // The Identity matrix coefficient places the RGB values into the YUV planes without any conversion.
+                        // This reduces the compression efficiency, but allows for fully lossless encoding.
+                        temp.NclxColorProfile = new HeifNclxColorProfile(ColorPrimaries.BT709,
+                                                                         TransferCharacteristics.Srgb,
+                                                                         MatrixCoefficients.Identity,
+                                                                         fullRange: true);
+                    }
+                    else if (metadata.IccProfile != null)
+                    {
+                        temp.IccColorProfile = new HeifIccColorProfile(metadata.IccProfile.ToByteArray());
+                    }
+                    else
+                    {
+                        temp.NclxColorProfile = new HeifNclxColorProfile(ColorPrimaries.BT709,
+                                                                         TransferCharacteristics.Srgb,
+                                                                         MatrixCoefficients.BT601,
+                                                                         fullRange: true);
+                    }
                 }
 
                 heifImage = temp;
@@ -350,6 +385,25 @@ namespace HeifEncoderSample
                         {
                             Console.Write($", [{ integerEncoderParameter.Minimum },{ integerEncoderParameter.Maximum }]");
                         }
+
+                        var validIntegerValues = integerEncoderParameter.ValidValues;
+
+                        if (validIntegerValues.Count > 0)
+                        {
+                            Console.Write(", {");
+
+                            for (int j = 0; j < validIntegerValues.Count; j++)
+                            {
+                                if (j > 0)
+                                {
+                                    Console.Write(',');
+                                }
+
+                                Console.Write(validIntegerValues[j]);
+                            }
+
+                            Console.Write('}');
+                        }
                         break;
                     case HeifEncoderParameterType.String:
                         var stringEncoderParameter = (HeifStringEncoderParameter)parameter;
@@ -359,20 +413,20 @@ namespace HeifEncoderSample
                             Console.Write($", default={ stringEncoderParameter.DefaultValue }");
                         }
 
-                        var validValues = stringEncoderParameter.ValidValues;
+                        var validStringValues = stringEncoderParameter.ValidValues;
 
-                        if (validValues.Count > 0)
+                        if (validStringValues.Count > 0)
                         {
                             Console.Write(", {");
 
-                            for (int j = 0; j < validValues.Count; j++)
+                            for (int j = 0; j < validStringValues.Count; j++)
                             {
                                 if (j > 0)
                                 {
                                     Console.Write(',');
                                 }
 
-                                Console.Write(validValues[j]);
+                                Console.Write(validStringValues[j]);
                             }
 
                             Console.Write('}');

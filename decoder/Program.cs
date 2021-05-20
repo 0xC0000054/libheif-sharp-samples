@@ -40,10 +40,13 @@ namespace HeifDecoderSample
 {
     class Program
     {
+        private static readonly Lazy<char[]> InvalidFileNameChars = new Lazy<char[]>(() => Path.GetInvalidFileNameChars());
+
         static void Main(string[] args)
         {
             bool extractDepthImages = false;
             bool extractThumbnailImages = false;
+            bool extractVendorAuxiliaryImages = false;
             bool extractPrimaryImage = false;
             bool convertHdrToEightBit = false;
             bool showHelp = false;
@@ -56,6 +59,7 @@ namespace HeifDecoderSample
                 { "p|primary", "Extract the primary image (default: extract all top-level images).", (v) => extractPrimaryImage = v != null },
                 { "d|depth", "Extract the depth images (if present).", (v) => extractDepthImages = v != null },
                 { "t|thumb", "Extract the thumbnail images (if present).", (v) => extractThumbnailImages = v != null },
+                { "x|vendor-auxiliary", "Extract the vendor-specific auxiliary images (if present).", (v) => extractVendorAuxiliaryImages = v != null },
                 { "no-hdr", "Convert HDR images to 8 bits-per-channel.", (v) => convertHdrToEightBit = v != null },
                 { "h|help", "Print out this message and exit.", (v) => showHelp = v != null }
             };
@@ -84,7 +88,12 @@ namespace HeifDecoderSample
                     {
                         using (var primaryImage = context.GetPrimaryImageHandle())
                         {
-                            ProcessImageHandle(primaryImage, decodingOptions, extractDepthImages, extractThumbnailImages, outputPath);
+                            ProcessImageHandle(primaryImage,
+                                               decodingOptions,
+                                               extractDepthImages,
+                                               extractThumbnailImages,
+                                               extractVendorAuxiliaryImages,
+                                               outputPath);
                         }
                     }
                     else
@@ -101,6 +110,7 @@ namespace HeifDecoderSample
                                                    decodingOptions,
                                                    extractDepthImages,
                                                    extractThumbnailImages,
+                                                   extractVendorAuxiliaryImages,
                                                    string.Format(CultureInfo.CurrentCulture, imageFileName, i));
                             }
                         }
@@ -120,6 +130,18 @@ namespace HeifDecoderSample
             string extension = Path.GetExtension(path);
 
             return Path.Combine(outputDir, fileName + suffix + extension);
+        }
+
+        static string SanitizeFileName(string fileName)
+        {
+            char[] invalidChars = InvalidFileNameChars.Value;
+
+            foreach (char invalid in invalidChars)
+            {
+                fileName = fileName.Replace(invalid, '_');
+            }
+
+            return fileName;
         }
 
         static unsafe Image CreateEightBitImageWithAlpha(HeifImage heifImage)
@@ -244,6 +266,7 @@ namespace HeifDecoderSample
                                        HeifDecodingOptions decodingOptions,
                                        bool extractDepthImages,
                                        bool extractThumbnailImages,
+                                       bool extractVendorAuxiliaryImages,
                                        string outputPath)
         {
             WriteOutputImage(imageHandle, decodingOptions, outputPath);
@@ -310,6 +333,44 @@ namespace HeifDecoderSample
                     }
                 }
             }
+
+            if (extractVendorAuxiliaryImages)
+            {
+                var vendorAuxImageIds = imageHandle.GetAuxiliaryImageIds();
+
+                if (vendorAuxImageIds.Count > 0)
+                {
+                    string vendorAuxFileName;
+
+                    if (vendorAuxImageIds.Count == 1)
+                    {
+                        using (var vendorAuxImageHandle = imageHandle.GetAuxiliaryImage(vendorAuxImageIds[0]))
+                        {
+                            string type = vendorAuxImageHandle.GetAuxiliaryType();
+
+                            vendorAuxFileName = AddSuffixToFileName(outputPath, "-" + SanitizeFileName(type));
+                            WriteOutputImage(vendorAuxImageHandle, decodingOptions, vendorAuxFileName);
+                        }
+                    }
+                    else
+                    {
+                        for (int i = 0; i < vendorAuxImageIds.Count; i++)
+                        {
+                            using (var vendorAuxImageHandle = imageHandle.GetThumbnailImage(vendorAuxImageIds[i]))
+                            {
+                                string type = vendorAuxImageHandle.GetAuxiliaryType();
+
+                                vendorAuxFileName = AddSuffixToFileName(outputPath, string.Format(CultureInfo.CurrentCulture,
+                                                                                                  "-{0}-{1}",
+                                                                                                  SanitizeFileName(type),
+                                                                                                  i));
+
+                                WriteOutputImage(vendorAuxImageHandle, decodingOptions, vendorAuxFileName);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         static void WriteOutputImage(HeifImageHandle imageHandle, HeifDecodingOptions decodingOptions, string outputPath)
@@ -360,9 +421,9 @@ namespace HeifDecoderSample
                         throw new InvalidOperationException("Unsupported HeifChroma value.");
                 }
 
-                if (image.ColorProfile is HeifIccColorProfile iccProfile)
+                if (image.IccColorProfile != null)
                 {
-                    outputImage.Metadata.IccProfile = new IccProfile(iccProfile.GetIccProfileBytes());
+                    outputImage.Metadata.IccProfile = new IccProfile(image.IccColorProfile.GetIccProfileBytes());
                 }
             }
 
