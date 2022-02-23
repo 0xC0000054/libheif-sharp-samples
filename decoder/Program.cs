@@ -144,7 +144,7 @@ namespace HeifDecoderSample
             return fileName;
         }
 
-        static unsafe Image CreateEightBitImageWithAlpha(HeifImage heifImage)
+        static unsafe Image CreateEightBitImageWithAlpha(HeifImage heifImage, bool premultiplied)
         {
             var image = new Image<Rgba32>(heifImage.Width, heifImage.Height);
 
@@ -162,9 +162,35 @@ namespace HeifDecoderSample
                 {
                     ref var pixel = ref dst[x];
 
-                    pixel.R = src[0];
-                    pixel.G = src[1];
-                    pixel.B = src[2];
+                    if (premultiplied)
+                    {
+                        byte alpha = src[3];
+
+                        switch (alpha)
+                        {
+                            case 0:
+                                pixel.R = 0;
+                                pixel.G = 0;
+                                pixel.B = 0;
+                                break;
+                            case 255:
+                                pixel.R = src[0];
+                                pixel.G = src[1];
+                                pixel.B = src[2];
+                                break;
+                            default:
+                                pixel.R = (byte)Math.Min(MathF.Round(src[0] * 255f / alpha), 255);
+                                pixel.G = (byte)Math.Min(MathF.Round(src[1] * 255f / alpha), 255);
+                                pixel.B = (byte)Math.Min(MathF.Round(src[2] * 255f / alpha), 255);
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        pixel.R = src[0];
+                        pixel.G = src[1];
+                        pixel.B = src[2];
+                    }
                     pixel.A = src[3];
 
                     src += 4;
@@ -203,7 +229,7 @@ namespace HeifDecoderSample
             return image;
         }
 
-        static unsafe Image CreateSixteenBitImageWithAlpha(HeifImage heifImage)
+        static unsafe Image CreateSixteenBitImageWithAlpha(HeifImage heifImage, bool premultiplied, int bitDepth)
         {
             var image = new Image<Rgba64>(heifImage.Width, heifImage.Height);
 
@@ -211,6 +237,9 @@ namespace HeifDecoderSample
 
             byte* srcScan0 = (byte*)heifPlaneData.Scan0;
             int srcStride = heifPlaneData.Stride;
+
+            int maxChannelValue = (1 << bitDepth) - 1;
+            float maxChannelValueFloat = maxChannelValue;
 
             for (int y = 0; y < image.Height; y++)
             {
@@ -221,9 +250,39 @@ namespace HeifDecoderSample
                 {
                     ref var pixel = ref dst[x];
 
-                    pixel.R = src[0];
-                    pixel.G = src[1];
-                    pixel.B = src[2];
+                    if (premultiplied)
+                    {
+                        ushort alpha = src[3];
+
+                        if (alpha == maxChannelValue)
+                        {
+                            pixel.R = src[0];
+                            pixel.G = src[1];
+                            pixel.B = src[2];
+                        }
+                        else
+                        {
+                            switch (alpha)
+                            {
+                                case 0:
+                                    pixel.R = 0;
+                                    pixel.G = 0;
+                                    pixel.B = 0;
+                                    break;
+                                default:
+                                    pixel.R = (ushort)Math.Min(MathF.Round(src[0] * maxChannelValueFloat / alpha), maxChannelValue);
+                                    pixel.G = (ushort)Math.Min(MathF.Round(src[1] * maxChannelValueFloat / alpha), maxChannelValue);
+                                    pixel.B = (ushort)Math.Min(MathF.Round(src[2] * maxChannelValueFloat / alpha), maxChannelValue);
+                                    break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        pixel.R = src[0];
+                        pixel.G = src[1];
+                        pixel.B = src[2];
+                    }
                     pixel.A = src[3];
 
                     src += 4;
@@ -407,7 +466,7 @@ namespace HeifDecoderSample
                         outputImage = CreateEightBitImageWithoutAlpha(image);
                         break;
                     case HeifChroma.InterleavedRgba32:
-                        outputImage = CreateEightBitImageWithAlpha(image);
+                        outputImage = CreateEightBitImageWithAlpha(image, imageHandle.IsPremultipliedAlpha);
                         break;
                     case HeifChroma.InterleavedRgb48BE:
                     case HeifChroma.InterleavedRgb48LE:
@@ -415,7 +474,7 @@ namespace HeifDecoderSample
                         break;
                     case HeifChroma.InterleavedRgba64BE:
                     case HeifChroma.InterleavedRgba64LE:
-                        outputImage = CreateSixteenBitImageWithAlpha(image);
+                        outputImage = CreateSixteenBitImageWithAlpha(image, imageHandle.IsPremultipliedAlpha, imageHandle.BitDepth);
                         break;
                     default:
                         throw new InvalidOperationException("Unsupported HeifChroma value.");

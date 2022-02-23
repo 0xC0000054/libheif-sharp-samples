@@ -54,6 +54,7 @@ namespace HeifEncoderSample
             bool saveAlphaChannel = true;
             bool saveThumbnailAlphaChannel = true;
             bool writeTwoProfiles = false;
+            bool premultiplyAlpha = false;
             int thumbnailBoundingBoxSize = 0;
             bool showHelp = false;
 
@@ -75,6 +76,7 @@ namespace HeifEncoderSample
                     { "no-alpha", "Do not save the image alpha channel. (default: false)", (v) => saveAlphaChannel = v is null },
                     { "no-thumbnail-alpha", "Do not save the thumbnail image alpha channel. (default: false)", (v) => saveThumbnailAlphaChannel = v is null },
                     { "write-two-profiles", "Write two profiles when the image has both an ICC and NCLX color profile. (default: false)", (v) => writeTwoProfiles = v != null },
+                    { "premultiply", "Premultiply the color and alpha channels. (default: false)", (v) => premultiplyAlpha = v != null },
                     { "h|help", "Print out this message and exit.", (v) => showHelp = v != null }
                 };
 
@@ -163,7 +165,7 @@ namespace HeifEncoderSample
                             string inputPath = remaining[0];
                             string outputPath = remaining[1];
 
-                            using (var heifImage = CreateHeifImage(inputPath, lossless, writeTwoProfiles, out var metadata))
+                            using (var heifImage = CreateHeifImage(inputPath, lossless, writeTwoProfiles, premultiplyAlpha, out var metadata))
                             {
                                 if (encoderParameters.Count > 0)
                                 {
@@ -232,7 +234,11 @@ namespace HeifEncoderSample
             }
         }
 
-        static HeifImage CreateHeifImage(string inputPath, bool lossless, bool writeTwoColorProfiles, out ImageMetadata metadata)
+        static HeifImage CreateHeifImage(string inputPath,
+                                         bool lossless,
+                                         bool writeTwoColorProfiles,
+                                         bool premultiplyAlpha,
+                                         out ImageMetadata metadata)
         {
             HeifImage heifImage = null;
             HeifImage temp = null;
@@ -244,7 +250,12 @@ namespace HeifEncoderSample
                     var image = Image.Load<Rgba32>(inputPath);
                     metadata = image.Metadata;
 
-                    temp = ImageConversion.ConvertToHeifImage(image);
+                    temp = ImageConversion.ConvertToHeifImage(image, premultiplyAlpha);
+
+                    if (temp.HasAlphaChannel && premultiplyAlpha)
+                    {
+                        temp.IsPremultipliedAlpha = true;
+                    }
                 }
                 else
                 {

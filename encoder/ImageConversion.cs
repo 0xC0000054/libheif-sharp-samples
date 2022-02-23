@@ -28,6 +28,7 @@
 using LibHeifSharp;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using System;
 
 namespace HeifEncoderSample
 {
@@ -71,7 +72,7 @@ namespace HeifEncoderSample
             return heifImage;
         }
 
-        public static HeifImage ConvertToHeifImage(Image<Rgba32> image)
+        public static HeifImage ConvertToHeifImage(Image<Rgba32> image, bool premultiplyAlpha)
         {
             AnalyzeImage(image, out bool isGrayscale, out bool hasTransparency);
 
@@ -103,13 +104,13 @@ namespace HeifEncoderSample
                         temp.AddPlane(HeifChannel.Alpha, image.Width, image.Height, 8);
                     }
 
-                    CopyGrayscale(image, temp, hasTransparency);
+                    CopyGrayscale(image, temp, hasTransparency, premultiplyAlpha);
                 }
                 else
                 {
                     temp.AddPlane(HeifChannel.Interleaved, image.Width, image.Height, 8);
 
-                    CopyRgb(image, temp, hasTransparency);
+                    CopyRgb(image, temp, hasTransparency, premultiplyAlpha);
                 }
 
                 heifImage = temp;
@@ -149,7 +150,10 @@ namespace HeifEncoderSample
             }
         }
 
-        private static unsafe void CopyGrayscale(Image<Rgba32> image, HeifImage heifImage, bool hasTransparency)
+        private static unsafe void CopyGrayscale(Image<Rgba32> image,
+                                                 HeifImage heifImage,
+                                                 bool hasTransparency,
+                                                 bool premultiplyAlpha)
         {
             var grayPlane = heifImage.GetPlane(HeifChannel.Y);
 
@@ -173,7 +177,27 @@ namespace HeifEncoderSample
                     {
                         ref var pixel = ref src[x];
 
-                        dst[0] = pixel.R;
+                        if (premultiplyAlpha)
+                        {
+#pragma warning disable IDE0066 // Convert switch statement to expression
+                            switch (pixel.A)
+                            {
+                                case 0:
+                                    dst[0] = 0;
+                                    break;
+                                case 255:
+                                    dst[0] = pixel.R;
+                                    break;
+                                default:
+                                    dst[0] = (byte)MathF.Round((float)pixel.R * pixel.A / 255f);
+                                    break;
+                            }
+#pragma warning restore IDE0066 // Convert switch statement to expression
+                        }
+                        else
+                        {
+                            dst[0] = pixel.R;
+                        }
                         dstAlpha[0] = pixel.A;
 
                         dst++;
@@ -224,7 +248,10 @@ namespace HeifEncoderSample
             }
         }
 
-        private static unsafe void CopyRgb(Image<Rgba32> image, HeifImage heifImage, bool hasTransparency)
+        private static unsafe void CopyRgb(Image<Rgba32> image,
+                                           HeifImage heifImage,
+                                           bool hasTransparency,
+                                           bool premultiplyAlpha)
         {
             var interleavedData = heifImage.GetPlane(HeifChannel.Interleaved);
 
@@ -242,9 +269,33 @@ namespace HeifEncoderSample
                     {
                         ref var pixel = ref src[x];
 
-                        dst[0] = pixel.R;
-                        dst[1] = pixel.G;
-                        dst[2] = pixel.B;
+                        if (premultiplyAlpha)
+                        {
+                            switch (pixel.A)
+                            {
+                                case 0:
+                                    dst[0] = 0;
+                                    dst[1] = 0;
+                                    dst[2] = 0;
+                                    break;
+                                case 255:
+                                    dst[0] = pixel.R;
+                                    dst[1] = pixel.G;
+                                    dst[2] = pixel.B;
+                                    break;
+                                default:
+                                    dst[0] = (byte)MathF.Round((float)pixel.R * pixel.A / 255f);
+                                    dst[1] = (byte)MathF.Round((float)pixel.G * pixel.A / 255f);
+                                    dst[2] = (byte)MathF.Round((float)pixel.B * pixel.A / 255f);
+                                    break;
+                            }
+                        }
+                        else
+                        {
+                            dst[0] = pixel.R;
+                            dst[1] = pixel.G;
+                            dst[2] = pixel.B;
+                        }
                         dst[3] = pixel.A;
 
                         dst += 4;
