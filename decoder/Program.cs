@@ -461,7 +461,6 @@ namespace HeifDecoderSample
             {
                 switch (chroma)
                 {
-
                     case HeifChroma.InterleavedRgb24:
                         outputImage = CreateEightBitImageWithoutAlpha(image);
                         break;
