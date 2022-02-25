@@ -40,7 +40,7 @@ namespace HeifDecoderSample
 {
     class Program
     {
-        private static readonly Lazy<char[]> InvalidFileNameChars = new Lazy<char[]>(() => Path.GetInvalidFileNameChars());
+        private static readonly Lazy<char[]> InvalidFileNameChars = new(Path.GetInvalidFileNameChars);
 
         static void Main(string[] args)
         {
