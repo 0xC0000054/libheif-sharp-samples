@@ -46,6 +46,7 @@ csharp_style_var_elsewhere                                               = true 
 csharp_style_var_for_built_in_types                                      = false : silent
 csharp_style_var_when_type_is_apparent                                   = true : silent
 csharp_using_directive_placement                                         = outside_namespace : suggestion
+csharp_style_prefer_switch_expression = false
 
 [*.{cs,vb}]
 dotnet_separate_import_directive_groups                          = false
