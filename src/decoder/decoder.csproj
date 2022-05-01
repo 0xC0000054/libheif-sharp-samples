@@ -1,10 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net60</TargetFramework>
-    <RootNamespace>HeifEncoderSample</RootNamespace>
-    <AssemblyName>heif-enc</AssemblyName>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>heif-dec</AssemblyName>
+    <RootNamespace>HeifDecoderSample</RootNamespace>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
 
@@ -23,7 +23,7 @@
 
   <ItemGroup>
     <Reference Include="LibHeifSharp">
-      <HintPath>..\..\LibHeifSharp\src\bin\Release\netstandard2.0\LibHeifSharp.dll</HintPath>
+      <HintPath>..\..\..\LibHeifSharp\src\bin\Release\netstandard2.0\LibHeifSharp.dll</HintPath>
     </Reference>
   </ItemGroup>
 
