@@ -197,7 +197,9 @@ namespace HeifEncoderSample
                                     WriteTwoColorProfiles = writeTwoProfiles
                                 };
 
-                                if (metadata.ExifProfile is null && thumbnailBoundingBoxSize == 0)
+                                if (metadata.ExifProfile is null
+                                    && metadata.XmpProfile is null
+                                    && thumbnailBoundingBoxSize == 0)
                                 {
                                     context.EncodeImage(heifImage, encoder, encodingOptions);
                                 }
@@ -208,6 +210,11 @@ namespace HeifEncoderSample
                                         if (metadata.ExifProfile != null)
                                         {
                                             context.AddExifMetadata(imageHandle, metadata.ExifProfile.ToByteArray());
+                                        }
+
+                                        if (metadata.XmpProfile != null)
+                                        {
+                                            context.AddXmpMetadata(imageHandle, metadata.XmpProfile.ToByteArray());
                                         }
 
                                         if (thumbnailBoundingBoxSize > 0)

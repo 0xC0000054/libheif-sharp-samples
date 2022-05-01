@@ -31,6 +31,7 @@ using Mono.Options;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.Metadata.Profiles.Icc;
+using SixLabors.ImageSharp.Metadata.Profiles.Xmp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Globalization;
@@ -506,6 +507,13 @@ namespace HeifDecoderSample
                 // informational and should not be used to rotate the image.
                 // See https://github.com/strukturag/libheif/issues/227#issuecomment-642165942
                 outputImage.Metadata.ExifProfile.RemoveValue(ExifTag.Orientation);
+            }
+
+            byte[] xmp = imageHandle.GetXmpMetadata();
+
+            if (xmp != null)
+            {
+                outputImage.Metadata.XmpProfile = new XmpProfile(xmp);
             }
 
             outputImage.SaveAsPng(outputPath);
