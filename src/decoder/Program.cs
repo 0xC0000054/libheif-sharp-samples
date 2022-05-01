@@ -153,49 +153,52 @@ namespace HeifDecoderSample
             byte* srcScan0 = (byte*)heifPlaneData.Scan0;
             int srcStride = heifPlaneData.Stride;
 
-            for (int y = 0; y < image.Height; y++)
+            image.ProcessPixelRows(accessor =>
             {
-                byte* src = srcScan0 + (y * srcStride);
-                var dst = image.GetPixelRowSpan(y);
-
-                for (int x = 0; x < image.Width; x++)
+                for (int y = 0; y < accessor.Height; y++)
                 {
-                    ref var pixel = ref dst[x];
+                    byte* src = srcScan0 + (y * srcStride);
+                    var dst = accessor.GetRowSpan(y);
 
-                    if (premultiplied)
+                    for (int x = 0; x < accessor.Width; x++)
                     {
-                        byte alpha = src[3];
+                        ref var pixel = ref dst[x];
 
-                        switch (alpha)
+                        if (premultiplied)
                         {
-                            case 0:
-                                pixel.R = 0;
-                                pixel.G = 0;
-                                pixel.B = 0;
-                                break;
-                            case 255:
-                                pixel.R = src[0];
-                                pixel.G = src[1];
-                                pixel.B = src[2];
-                                break;
-                            default:
-                                pixel.R = (byte)Math.Min(MathF.Round(src[0] * 255f / alpha), 255);
-                                pixel.G = (byte)Math.Min(MathF.Round(src[1] * 255f / alpha), 255);
-                                pixel.B = (byte)Math.Min(MathF.Round(src[2] * 255f / alpha), 255);
-                                break;
-                        }
-                    }
-                    else
-                    {
-                        pixel.R = src[0];
-                        pixel.G = src[1];
-                        pixel.B = src[2];
-                    }
-                    pixel.A = src[3];
+                            byte alpha = src[3];
 
-                    src += 4;
+                            switch (alpha)
+                            {
+                                case 0:
+                                    pixel.R = 0;
+                                    pixel.G = 0;
+                                    pixel.B = 0;
+                                    break;
+                                case 255:
+                                    pixel.R = src[0];
+                                    pixel.G = src[1];
+                                    pixel.B = src[2];
+                                    break;
+                                default:
+                                    pixel.R = (byte)Math.Min(MathF.Round(src[0] * 255f / alpha), 255);
+                                    pixel.G = (byte)Math.Min(MathF.Round(src[1] * 255f / alpha), 255);
+                                    pixel.B = (byte)Math.Min(MathF.Round(src[2] * 255f / alpha), 255);
+                                    break;
+                            }
+                        }
+                        else
+                        {
+                            pixel.R = src[0];
+                            pixel.G = src[1];
+                            pixel.B = src[2];
+                        }
+                        pixel.A = src[3];
+
+                        src += 4;
+                    }
                 }
-            }
+            });
 
             return image;
         }
@@ -209,22 +212,25 @@ namespace HeifDecoderSample
             byte* srcScan0 = (byte*)heifPlaneData.Scan0;
             int srcStride = heifPlaneData.Stride;
 
-            for (int y = 0; y < image.Height; y++)
+            image.ProcessPixelRows(accessor =>
             {
-                byte* src = srcScan0 + (y * srcStride);
-                var dst = image.GetPixelRowSpan(y);
-
-                for (int x = 0; x < image.Width; x++)
+                for (int y = 0; y < accessor.Height; y++)
                 {
-                    ref var pixel = ref dst[x];
+                    byte* src = srcScan0 + (y * srcStride);
+                    var dst = accessor.GetRowSpan(y);
 
-                    pixel.R = src[0];
-                    pixel.G = src[1];
-                    pixel.B = src[2];
+                    for (int x = 0; x < accessor.Width; x++)
+                    {
+                        ref var pixel = ref dst[x];
 
-                    src += 3;
+                        pixel.R = src[0];
+                        pixel.G = src[1];
+                        pixel.B = src[2];
+
+                        src += 3;
+                    }
                 }
-            }
+            });
 
             return image;
         }
@@ -241,53 +247,56 @@ namespace HeifDecoderSample
             int maxChannelValue = (1 << bitDepth) - 1;
             float maxChannelValueFloat = maxChannelValue;
 
-            for (int y = 0; y < image.Height; y++)
+            image.ProcessPixelRows(accessor =>
             {
-                ushort* src = (ushort*)(srcScan0 + (y * srcStride));
-                var dst = image.GetPixelRowSpan(y);
-
-                for (int x = 0; x < image.Width; x++)
+                for (int y = 0; y < accessor.Height; y++)
                 {
-                    ref var pixel = ref dst[x];
+                    ushort* src = (ushort*)(srcScan0 + (y * srcStride));
+                    var dst = accessor.GetRowSpan(y);
 
-                    if (premultiplied)
+                    for (int x = 0; x < accessor.Width; x++)
                     {
-                        ushort alpha = src[3];
+                        ref var pixel = ref dst[x];
 
-                        if (alpha == maxChannelValue)
+                        if (premultiplied)
+                        {
+                            ushort alpha = src[3];
+
+                            if (alpha == maxChannelValue)
+                            {
+                                pixel.R = src[0];
+                                pixel.G = src[1];
+                                pixel.B = src[2];
+                            }
+                            else
+                            {
+                                switch (alpha)
+                                {
+                                    case 0:
+                                        pixel.R = 0;
+                                        pixel.G = 0;
+                                        pixel.B = 0;
+                                        break;
+                                    default:
+                                        pixel.R = (ushort)Math.Min(MathF.Round(src[0] * maxChannelValueFloat / alpha), maxChannelValue);
+                                        pixel.G = (ushort)Math.Min(MathF.Round(src[1] * maxChannelValueFloat / alpha), maxChannelValue);
+                                        pixel.B = (ushort)Math.Min(MathF.Round(src[2] * maxChannelValueFloat / alpha), maxChannelValue);
+                                        break;
+                                }
+                            }
+                        }
+                        else
                         {
                             pixel.R = src[0];
                             pixel.G = src[1];
                             pixel.B = src[2];
                         }
-                        else
-                        {
-                            switch (alpha)
-                            {
-                                case 0:
-                                    pixel.R = 0;
-                                    pixel.G = 0;
-                                    pixel.B = 0;
-                                    break;
-                                default:
-                                    pixel.R = (ushort)Math.Min(MathF.Round(src[0] * maxChannelValueFloat / alpha), maxChannelValue);
-                                    pixel.G = (ushort)Math.Min(MathF.Round(src[1] * maxChannelValueFloat / alpha), maxChannelValue);
-                                    pixel.B = (ushort)Math.Min(MathF.Round(src[2] * maxChannelValueFloat / alpha), maxChannelValue);
-                                    break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        pixel.R = src[0];
-                        pixel.G = src[1];
-                        pixel.B = src[2];
-                    }
-                    pixel.A = src[3];
+                        pixel.A = src[3];
 
-                    src += 4;
+                        src += 4;
+                    }
                 }
-            }
+            });
 
             return image;
         }
@@ -301,22 +310,25 @@ namespace HeifDecoderSample
             byte* srcScan0 = (byte*)heifPlaneData.Scan0;
             int srcStride = heifPlaneData.Stride;
 
-            for (int y = 0; y < image.Height; y++)
+            image.ProcessPixelRows(accessor =>
             {
-                ushort* src = (ushort*)(srcScan0 + (y * srcStride));
-                var dst = image.GetPixelRowSpan(y);
-
-                for (int x = 0; x < image.Width; x++)
+                for (int y = 0; y < accessor.Height; y++)
                 {
-                    ref var pixel = ref dst[x];
+                    ushort* src = (ushort*)(srcScan0 + (y * srcStride));
+                    var dst = accessor.GetRowSpan(y);
 
-                    pixel.R = src[0];
-                    pixel.G = src[1];
-                    pixel.B = src[2];
+                    for (int x = 0; x < accessor.Width; x++)
+                    {
+                        ref var pixel = ref dst[x];
 
-                    src += 3;
+                        pixel.R = src[0];
+                        pixel.G = src[1];
+                        pixel.B = src[2];
+
+                        src += 3;
+                    }
                 }
-            }
+            });
 
             return image;
         }
