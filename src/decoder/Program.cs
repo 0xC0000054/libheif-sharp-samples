@@ -50,6 +50,7 @@ namespace HeifDecoderSample
             bool extractVendorAuxiliaryImages = false;
             bool extractPrimaryImage = false;
             bool convertHdrToEightBit = false;
+            bool strict = false;
             bool showHelp = false;
 
             var options = new OptionSet
@@ -62,6 +63,7 @@ namespace HeifDecoderSample
                 { "t|thumb", "Extract the thumbnail images (if present).", (v) => extractThumbnailImages = v != null },
                 { "x|vendor-auxiliary", "Extract the vendor-specific auxiliary images (if present).", (v) => extractVendorAuxiliaryImages = v != null },
                 { "no-hdr", "Convert HDR images to 8 bits-per-channel.", (v) => convertHdrToEightBit = v != null },
+                { "s|strict", "Return an error for invalid inputs.", (v) => strict = v != null },
                 { "h|help", "Print out this message and exit.", (v) => showHelp = v != null }
             };
 
@@ -80,7 +82,8 @@ namespace HeifDecoderSample
             {
                 var decodingOptions = new HeifDecodingOptions
                 {
-                    ConvertHdrToEightBit = convertHdrToEightBit
+                    ConvertHdrToEightBit = convertHdrToEightBit,
+                    Strict = strict
                 };
 
                 using (var context = new HeifContext(inputPath))
@@ -472,6 +475,13 @@ namespace HeifDecoderSample
 
             using (var image = imageHandle.Decode(HeifColorspace.Rgb, chroma, decodingOptions))
             {
+                var decodingWarnings = image.DecodingWarnings;
+
+                foreach (var item in decodingWarnings)
+                {
+                    Console.WriteLine("Warning: " + item);
+                }
+
                 switch (chroma)
                 {
                     case HeifChroma.InterleavedRgb24:
