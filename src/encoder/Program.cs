@@ -33,6 +33,7 @@ using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Formats.Tga;
 using SixLabors.ImageSharp.Metadata;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
@@ -205,6 +206,20 @@ namespace HeifEncoderSample
                                 }
                                 else
                                 {
+                                    if (metadata.ExifProfile != null)
+                                    {
+                                        var exifOrientation = metadata.ExifProfile.GetValue(ExifTag.Orientation);
+
+                                        if (exifOrientation != null && Enum.IsDefined((HeifOrientation)exifOrientation.Value))
+                                        {
+                                            HeifOrientation heifOrientation = (HeifOrientation)exifOrientation.Value;
+
+                                            // The encoder will convert the EXIF rotation and flip commands into their HEIF equivalents.
+                                            encodingOptions.ImageOrientation = heifOrientation;
+                                            metadata.ExifProfile.RemoveValue(ExifTag.Orientation);
+                                        }
+                                    }
+
                                     using (var imageHandle = context.EncodeImageAndReturnHandle(heifImage, encoder, encodingOptions))
                                     {
                                         if (metadata.ExifProfile != null)

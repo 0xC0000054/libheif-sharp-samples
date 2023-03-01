@@ -34,6 +34,7 @@ using SixLabors.ImageSharp.Metadata.Profiles.Icc;
 using SixLabors.ImageSharp.Metadata.Profiles.Xmp;
 using SixLabors.ImageSharp.PixelFormats;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 
@@ -49,6 +50,8 @@ namespace HeifDecoderSample
             bool extractThumbnailImages = false;
             bool extractVendorAuxiliaryImages = false;
             bool extractPrimaryImage = false;
+            string decoderId = null;
+            bool listDecoders = false;
             bool convertHdrToEightBit = false;
             bool strict = false;
             bool showHelp = false;
@@ -62,12 +65,55 @@ namespace HeifDecoderSample
                 { "d|depth", "Extract the depth images (if present).", (v) => extractDepthImages = v != null },
                 { "t|thumb", "Extract the thumbnail images (if present).", (v) => extractThumbnailImages = v != null },
                 { "x|vendor-auxiliary", "Extract the vendor-specific auxiliary images (if present).", (v) => extractVendorAuxiliaryImages = v != null },
+                { "decoder=", "Use a specific decoder. See the list-decoders option.", (v) => decoderId = v },
+                { "list-decoders", "Show a list of the available decoders.", (v) => listDecoders = v != null },
                 { "no-hdr", "Convert HDR images to 8 bits-per-channel.", (v) => convertHdrToEightBit = v != null },
                 { "s|strict", "Return an error for invalid inputs.", (v) => strict = v != null },
                 { "h|help", "Print out this message and exit.", (v) => showHelp = v != null }
             };
 
             var remaining = options.Parse(args);
+
+            if (listDecoders)
+            {
+                if (LibHeifInfo.HaveVersion(1, 15, 0))
+                {
+                    ListDecoders();
+                }
+                else
+                {
+                    Console.WriteLine("The list-decoders option requires LibHeif version 1.15.0 or later.");
+                }
+                return;
+            }
+            else if (!string.IsNullOrWhiteSpace(decoderId))
+            {
+                if (LibHeifInfo.HaveVersion(1, 15, 0))
+                {
+                    var decoderDescriptors = LibHeifInfo.GetDecoderDescriptors();
+                    bool isValidDecoderId = false;
+
+                    foreach (var descriptor in decoderDescriptors)
+                    {
+                        if (decoderId.Equals(descriptor.IdName, StringComparison.OrdinalIgnoreCase))
+                        {
+                            isValidDecoderId = true;
+                            break;
+                        }
+                    }
+
+                    if (!isValidDecoderId)
+                    {
+                        Console.WriteLine("Invalid decoder ID, please choose one from the list below:");
+                        PrintDecoderList(decoderDescriptors);
+                        return;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("The decoder option will be ignored, it requires LibHeif version 1.15.0 or later.");
+                }
+            }
 
             if (showHelp || remaining.Count != 2)
             {
@@ -83,7 +129,8 @@ namespace HeifDecoderSample
                 var decodingOptions = new HeifDecodingOptions
                 {
                     ConvertHdrToEightBit = convertHdrToEightBit,
-                    Strict = strict
+                    Strict = strict,
+                    DecoderId = decoderId
                 };
 
                 using (var context = new HeifContext(inputPath))
@@ -124,6 +171,24 @@ namespace HeifDecoderSample
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
+            }
+        }
+
+        static void ListDecoders()
+        {
+            Console.WriteLine("HEVC decoders:");
+            PrintDecoderList(LibHeifInfo.GetDecoderDescriptors(HeifCompressionFormat.Hevc));
+            Console.WriteLine("AV1 decoders:");
+            PrintDecoderList(LibHeifInfo.GetDecoderDescriptors(HeifCompressionFormat.Av1));
+        }
+
+        static void PrintDecoderList(IReadOnlyList<HeifDecoderDescriptor> decoderDescriptors)
+        {
+            for (int i = 0; i < decoderDescriptors.Count; i++)
+            {
+                var decoderDescriptor = decoderDescriptors[i];
+
+                Console.WriteLine("{0} = {1}", decoderDescriptor.IdName, decoderDescriptor.Name);
             }
         }
 
