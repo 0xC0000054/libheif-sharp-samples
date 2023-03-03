@@ -26,7 +26,9 @@
  */
 
 using System;
+using System.Reflection;
 using LibHeifSharp;
+using Mono.Options;
 
 namespace HeifInfoSample
 {
@@ -34,14 +36,33 @@ namespace HeifInfoSample
     {
         static void Main(string[] args)
         {
-            if (args.Length != 1)
-            {
-                Console.WriteLine("heif-info file");
-                return;
-            }
+            bool showHelp = false;
+            bool showVersion = false;
 
             try
             {
+                var options = new OptionSet
+                {
+                    "Usage: heif-info [OPTIONS] input",
+                    "",
+                    "Options:",
+                    { "h|help", "Print out this message and exit.", (v) => showHelp = v != null },
+                    { "v|version", "Print out the application and library version information and exit.", (v) => showVersion = v != null }
+                };
+
+                var remaining = options.Parse(args);
+
+                if (showVersion)
+                {
+                    PrintVersionInfo();
+                    return;
+                }
+                else if (showHelp || remaining.Count != 1)
+                {
+                    options.WriteOptionDescriptions(Console.Out);
+                    return;
+                }
+
                 string file = args[0];
 
                 using (HeifContext context = new HeifContext(file))
@@ -82,6 +103,30 @@ namespace HeifInfoSample
             catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
+            }
+        }
+
+        static void PrintVersionInfo()
+        {
+            Console.WriteLine("heif-info v{0} LibHeifSharp v{1} libheif v{2}",
+                              GetAssemblyFileVersion(typeof(Program)),
+                              GetAssemblyFileVersion(typeof(LibHeifInfo)),
+                              LibHeifInfo.Version.ToString(3));
+
+            static string GetAssemblyFileVersion(Type type)
+            {
+                var fileVersionAttribute = type.Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>();
+
+#pragma warning disable IDE0270 // Use coalesce expression
+                if (fileVersionAttribute is null)
+                {
+                    throw new InvalidOperationException($"Failed to get the AssemblyFileVersion for {type.Assembly.FullName}.");
+                }
+#pragma warning restore IDE0270 // Use coalesce expression
+
+                var trimmedVersion = new Version(fileVersionAttribute.Version);
+
+                return trimmedVersion.ToString(3);
             }
         }
 

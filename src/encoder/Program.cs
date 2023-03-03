@@ -38,6 +38,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Reflection;
 
 namespace HeifEncoderSample
 {
@@ -58,6 +59,7 @@ namespace HeifEncoderSample
             bool premultiplyAlpha = false;
             int thumbnailBoundingBoxSize = 0;
             bool showHelp = false;
+            bool showVersion = false;
 
             try
             {
@@ -78,7 +80,8 @@ namespace HeifEncoderSample
                     { "no-thumbnail-alpha", "Do not save the thumbnail image alpha channel. (default: false)", (v) => saveThumbnailAlphaChannel = v is null },
                     { "write-two-profiles", "Write two profiles when the image has both an ICC and NCLX color profile. (default: false)", (v) => writeTwoProfiles = v != null },
                     { "premultiply", "Premultiply the color and alpha channels. (default: false)", (v) => premultiplyAlpha = v != null },
-                    { "h|help", "Print out this message and exit.", (v) => showHelp = v != null }
+                    { "h|help", "Print out this message and exit.", (v) => showHelp = v != null },
+                    { "v|version", "Print out the application and library version information and exit.", (v) => showVersion = v != null }
                 };
 
                 var remaining = options.Parse(args);
@@ -86,6 +89,11 @@ namespace HeifEncoderSample
                 if (showHelp)
                 {
                     options.WriteOptionDescriptions(Console.Out);
+                    return;
+                }
+                else if (showVersion)
+                {
+                    PrintVersionInfo();
                     return;
                 }
 
@@ -253,6 +261,30 @@ namespace HeifEncoderSample
             catch (Exception ex)
             {
                 Console.WriteLine(ex);
+            }
+        }
+
+        static void PrintVersionInfo()
+        {
+            Console.WriteLine("heif-enc v{0} LibHeifSharp v{1} libheif v{2}",
+                              GetAssemblyFileVersion(typeof(Program)),
+                              GetAssemblyFileVersion(typeof(LibHeifInfo)),
+                              LibHeifInfo.Version.ToString(3));
+
+            static string GetAssemblyFileVersion(Type type)
+            {
+                var fileVersionAttribute = type.Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>();
+
+#pragma warning disable IDE0270 // Use coalesce expression
+                if (fileVersionAttribute is null)
+                {
+                    throw new InvalidOperationException($"Failed to get the AssemblyFileVersion for {type.Assembly.FullName}.");
+                }
+#pragma warning restore IDE0270 // Use coalesce expression
+
+                var trimmedVersion = new Version(fileVersionAttribute.Version);
+
+                return trimmedVersion.ToString(3);
             }
         }
 
