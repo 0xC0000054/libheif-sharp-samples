@@ -28,6 +28,7 @@
 using LibHeifSharp;
 using Mono.Options;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Bmp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
@@ -253,9 +254,8 @@ namespace HeifEncoderSample
                                 {
                                     if (metadata.ExifProfile != null)
                                     {
-                                        var exifOrientation = metadata.ExifProfile.GetValue(ExifTag.Orientation);
-
-                                        if (exifOrientation != null && Enum.IsDefined((HeifOrientation)exifOrientation.Value))
+                                        if (metadata.ExifProfile.TryGetValue(ExifTag.Orientation, out var exifOrientation)
+                                            && Enum.IsDefined((HeifOrientation)exifOrientation.Value))
                                         {
                                             HeifOrientation heifOrientation = (HeifOrientation)exifOrientation.Value;
 
@@ -425,7 +425,9 @@ namespace HeifEncoderSample
         {
             bool mayHaveTransparency = true;
 
-            var imageInfo = Image.Identify(path, out var imageFormat);
+            var imageInfo = Image.Identify(path);
+
+            var imageFormat = imageInfo.Metadata.DecodedImageFormat;
 
             if (imageFormat is PngFormat)
             {
