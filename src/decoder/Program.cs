@@ -25,7 +25,6 @@
  *
  */
 
-
 using LibHeifSharp;
 using Mono.Options;
 using SixLabors.ImageSharp;
@@ -52,6 +51,7 @@ namespace HeifDecoderSample
             bool extractVendorAuxiliaryImages = false;
             bool extractPrimaryImage = false;
             string decoderId = null;
+            string chromaUpsampling = null;
             bool listDecoders = false;
             bool convertHdrToEightBit = false;
             bool strict = false;
@@ -69,6 +69,7 @@ namespace HeifDecoderSample
                 { "x|vendor-auxiliary", "Extract the vendor-specific auxiliary images (if present).", (v) => extractVendorAuxiliaryImages = v != null },
                 { "decoder=", "Use a specific decoder. See the list-decoders option.", (v) => decoderId = v },
                 { "list-decoders", "Show a list of the available decoders.", (v) => listDecoders = v != null },
+                { "C|chroma-upsampling=", "Force chroma upsampling algorithm (nearest-neighbor / bilinear).", (v) => chromaUpsampling = v },
                 { "no-hdr", "Convert HDR images to 8 bits-per-channel.", (v) => convertHdrToEightBit = v != null },
                 { "s|strict", "Return an error for invalid inputs.", (v) => strict = v != null },
                 { "h|help", "Print out this message and exit.", (v) => showHelp = v != null },
@@ -140,6 +141,29 @@ namespace HeifDecoderSample
                     Strict = strict,
                     DecoderId = decoderId
                 };
+
+                if (!string.IsNullOrWhiteSpace(chromaUpsampling))
+                {
+                    if (LibHeifInfo.HaveVersion(1, 16, 0))
+                    {
+                        if (chromaUpsampling.Equals("nearest-neighbor", StringComparison.OrdinalIgnoreCase))
+                        {
+                            decodingOptions.ColorConversionOptions.PreferredChromaUpsamplingAlgorithm = HeifChromaUpsamplingAlgorithm.NearestNeighbor;
+                        }
+                        else if (chromaUpsampling.Equals("bilinear", StringComparison.OrdinalIgnoreCase))
+                        {
+                            decodingOptions.ColorConversionOptions.PreferredChromaUpsamplingAlgorithm = HeifChromaUpsamplingAlgorithm.Bilinear;
+                        }
+                        else
+                        {
+                            Console.WriteLine("Invalid chroma upsampling value, it must either nearest-neighbor or bilinear.");
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("The chroma upsampling option will be ignored, it requires LibHeif 1.16.0 or later.");
+                    }
+                }
 
                 using (var context = new HeifContext(inputPath))
                 {

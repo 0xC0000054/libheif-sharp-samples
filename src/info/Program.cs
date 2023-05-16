@@ -87,6 +87,13 @@ namespace HeifInfoSample
                             WriteDepthImageInfo(imageHandle);
                             WriteMetadataInfo(imageHandle);
 
+                            if (LibHeifInfo.HaveVersion(1, 16, 0))
+                            {
+                                WriteTransformationInfo(context, imageHandle);
+                                WriteRegionInfo(context, imageHandle);
+                                WritePropertyInfo(context, imageHandle);
+                            }
+
                             if (LibHeifInfo.HaveVersion(1, 15, 0))
                             {
                                 using (var image = imageHandle.Decode(HeifColorspace.Undefined, HeifChroma.Undefined))
@@ -301,6 +308,59 @@ namespace HeifInfoSample
             }
         }
 
+        static void WritePropertyInfo(HeifContext context, HeifImageHandle imageHandle)
+        {
+            var userDescriptions = context.GetUserDescriptionProperties(imageHandle);
+
+            Console.WriteLine("  properties:");
+
+            foreach (var item in userDescriptions)
+            {
+                Console.WriteLine("    user description:");
+                Console.WriteLine("      language: {0}", item.Language);
+                Console.WriteLine("      name: {0}", item.Name);
+                Console.WriteLine("      description: {0}", item.Description);
+                Console.WriteLine("      tags: {0}", item.Tags);
+            }
+        }
+
+        static void WriteRegionInfo(HeifContext context, HeifImageHandle imageHandle)
+        {
+            Console.WriteLine("  region annotations:");
+
+            var ids = imageHandle.GetRegionItemIds();
+
+            foreach (var id in ids)
+            {
+                using (HeifRegionItem regionItem = context.GetRegionItem(id))
+                {
+                    var regions = regionItem.GetRegionGeometries();
+
+                    Console.WriteLine("    id={0} reference_width={1} reference_height={2} {3} regions",
+                                      regionItem.Id,
+                                      regionItem.ReferenceWidth,
+                                      regionItem.ReferenceHeight,
+                                      regions.Count);
+
+                    foreach (var region in regions)
+                    {
+                        Console.WriteLine("      {0}", region.ToString());
+                    }
+
+                    var userDescriptions = context.GetUserDescriptionProperties(regionItem.Id);
+
+                    foreach (var item in userDescriptions)
+                    {
+                        Console.WriteLine("    user description:");
+                        Console.WriteLine("      language: {0}", item.Language);
+                        Console.WriteLine("      name: {0}", item.Name);
+                        Console.WriteLine("      description: {0}", item.Description);
+                        Console.WriteLine("      tags: {0}", item.Tags);
+                    }
+                }
+            }
+        }
+
         static void WriteThumbnailImageInfo(HeifImageHandle handle)
         {
             var thumbnailIds = handle.GetThumbnailImageIds();
@@ -323,6 +383,25 @@ namespace HeifInfoSample
             else
             {
                 Console.WriteLine("  thumbnails: none");
+            }
+        }
+
+        static void WriteTransformationInfo(HeifContext context, HeifImageHandle imageHandle)
+        {
+            var transformations = context.GetTransformationProperties(imageHandle);
+
+            if (transformations.Count > 0)
+            {
+                Console.WriteLine("  transformations:");
+
+                foreach (var item in transformations)
+                {
+                    Console.WriteLine("    {0}", item.ToString());
+                }
+            }
+            else
+            {
+                Console.WriteLine("  transformations: none");
             }
         }
     }

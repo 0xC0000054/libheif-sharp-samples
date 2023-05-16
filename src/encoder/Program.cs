@@ -58,6 +58,8 @@ namespace HeifEncoderSample
             bool writeTwoProfiles = false;
             bool premultiplyAlpha = false;
             int thumbnailBoundingBoxSize = 0;
+            string chromaDownsampling = null;
+            string primaryItemDescription = null;
             bool showHelp = false;
             bool showVersion = false;
 
@@ -80,6 +82,8 @@ namespace HeifEncoderSample
                     { "no-thumbnail-alpha", "Do not save the thumbnail image alpha channel. (default: false)", (v) => saveThumbnailAlphaChannel = v is null },
                     { "write-two-profiles", "Write two profiles when the image has both an ICC and NCLX color profile. (default: false)", (v) => writeTwoProfiles = v != null },
                     { "premultiply", "Premultiply the color and alpha channels. (default: false)", (v) => premultiplyAlpha = v != null },
+                    { "C|chroma-downsampling=", "Force chroma downsampling algorithm (nearest-neighbor / average / sharpyuv).", (v) => chromaDownsampling = v },
+                    { "d|primary-item-description=", "Set a user description for the primary image.", (v) => primaryItemDescription = v },
                     { "h|help", "Print out this message and exit.", (v) => showHelp = v != null },
                     { "v|version", "Print out the application and library version information and exit.", (v) => showVersion = v != null }
                 };
@@ -170,6 +174,11 @@ namespace HeifEncoderSample
                                 writeTwoProfiles = false;
                                 Console.WriteLine($"Warning: LibHeif version { LibHeifInfo.Version } cannot write two color profiles.");
                             }
+                            else if (!string.IsNullOrWhiteSpace(primaryItemDescription) && !LibHeifInfo.HaveVersion(1, 16, 0))
+                            {
+                                primaryItemDescription = null;
+                                Console.WriteLine($"Warning: LibHeif version { LibHeifInfo.Version } cannot set a primary item description.");
+                            }
 
                             string inputPath = remaining[0];
                             string outputPath = remaining[1];
@@ -206,9 +215,37 @@ namespace HeifEncoderSample
                                     WriteTwoColorProfiles = writeTwoProfiles
                                 };
 
+                                if (!string.IsNullOrWhiteSpace(chromaDownsampling))
+                                {
+                                    if (LibHeifInfo.HaveVersion(1, 16, 0))
+                                    {
+                                        if (chromaDownsampling.Equals("nearest-neighbor", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            encodingOptions.ColorConversionOptions.PreferredChromaDownsamplingAlgorithm = HeifChromaDownsamplingAlgorithm.NearestNeighbor;
+                                        }
+                                        else if (chromaDownsampling.Equals("average", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            encodingOptions.ColorConversionOptions.PreferredChromaDownsamplingAlgorithm = HeifChromaDownsamplingAlgorithm.Average;
+                                        }
+                                        else if (chromaDownsampling.Equals("sharpyuv", StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            encodingOptions.ColorConversionOptions.PreferredChromaDownsamplingAlgorithm = HeifChromaDownsamplingAlgorithm.SharpYuv;
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine("Invalid chroma downsampling value, it must one of: nearest-neighbor, average or sharpyuv.");
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("The chroma downsampling option will be ignored, it requires LibHeif 1.16.0 or later.");
+                                    }
+                                }
+
                                 if (metadata.ExifProfile is null
                                     && metadata.XmpProfile is null
-                                    && thumbnailBoundingBoxSize == 0)
+                                    && thumbnailBoundingBoxSize == 0
+                                    && string.IsNullOrWhiteSpace(primaryItemDescription))
                                 {
                                     context.EncodeImage(heifImage, encoder, encodingOptions);
                                 }
@@ -248,6 +285,15 @@ namespace HeifEncoderSample
                                             };
 
                                             context.EncodeThumbnail(thumbnailBoundingBoxSize, heifImage, imageHandle, encoder, thumbnailEncodingOptions);
+                                        }
+
+                                        if (!string.IsNullOrWhiteSpace(primaryItemDescription))
+                                        {
+                                            UserDescriptionProperty userDescription = new UserDescriptionProperty(primaryItemDescription,
+                                                                                                                  string.Empty,
+                                                                                                                  string.Empty,
+                                                                                                                  string.Empty);
+                                            context.AddUserDescriptionProperty(imageHandle, userDescription);
                                         }
                                     }
                                 }
