@@ -25,10 +25,10 @@
  *
  */
 
-using System;
-using System.Reflection;
 using LibHeifSharp;
 using Mono.Options;
+using System;
+using System.Reflection;
 
 namespace HeifInfoSample
 {
