@@ -461,7 +461,14 @@ namespace HeifEncoderSample
             {
                 var encoderDescriptor = encoderDescriptors[i];
 
-                Console.WriteLine("{0} = {1}", encoderDescriptor.IdName, encoderDescriptor.Name);
+                if (i == 0)
+                {
+                    Console.WriteLine($"{encoderDescriptor.IdName} = {encoderDescriptor.Name} [default]");
+                }
+                else
+                {
+                    Console.WriteLine($"{encoderDescriptor.IdName} = {encoderDescriptor.Name}");
+                }
             }
         }
 
