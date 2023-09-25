@@ -90,6 +90,10 @@ namespace HeifEncoderSample
 
                 var remaining = options.Parse(args);
 
+                // Register a DllImportResolver to allow for customization of how the runtime
+                // loads the libheif native library.
+                LibHeifSharpSamples.LibHeifSharpDllImportResolver.Register();
+
                 if (showHelp)
                 {
                     options.WriteOptionDescriptions(Console.Out);

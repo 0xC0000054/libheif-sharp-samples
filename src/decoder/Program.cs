@@ -78,6 +78,10 @@ namespace HeifDecoderSample
 
             var remaining = options.Parse(args);
 
+            // Register a DllImportResolver to allow for customization of how the runtime
+            // loads the libheif native library.
+            LibHeifSharpSamples.LibHeifSharpDllImportResolver.Register();
+
             if (showVersion)
             {
                 PrintVersionInfo();
